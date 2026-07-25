@@ -16,7 +16,7 @@ import random
 from typing import Dict, Any, List
 
 # ======================= تنظیمات =======================
-TOKEN = "YOUR_TOKEN_HERE"  # ← توکن ربات روبیکای خود را اینجا جایگزین کنید
+TOKEN = "BCIIGB0VOWSDTSZOUCYXRQBTAJBNESZYGEJDPQVAGKLJKDXBBJPECEPUOWGKQTAS"  # ← توکن ربات روبیکای خود را اینجا جایگزین کنید
 BOT_URL = f"https://botapi.rubika.ir/v3/{TOKEN}/"
 CHANNEL = "@coin_war"
 DATA_FILE = "players.json"
@@ -49,24 +49,22 @@ MAX_COINS_HOUR = 50000
 # ======================= API روبیکا (پولینگ) =======================
 def api_request(method: str, params: dict = None) -> dict:
     url = BOT_URL + method
-    safe = {}
+    payload = {}
     if params:
-        for k, v in params.items():
-            if k in ("reply_markup", "keyboard", "keypad"):
-                safe[k] = json.dumps(v, ensure_ascii=False)
-            else:
-                safe[k] = v
+        payload = params.copy()
+        for k in ("reply_markup", "keyboard", "keypad"):
+            if k in payload:
+                payload[k] = json.dumps(payload[k], ensure_ascii=False)
     try:
-        if safe:
-            query = urllib.parse.urlencode(safe, doseq=True)
-            full = url + "?" + query
-            req = urllib.request.Request(full)
-            with urllib.request.urlopen(req, timeout=30) as r:
-                text = r.read()
-        else:
-            req = urllib.request.Request(url)
-            with urllib.request.urlopen(req, timeout=15) as r:
-                text = r.read()
+        data = json.dumps(payload, ensure_ascii=False).encode('utf-8') if payload else b'{}'
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=30) as r:
+            text = r.read()
         try:
             return json.loads(text)
         except Exception:
