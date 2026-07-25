@@ -49,22 +49,24 @@ MAX_COINS_HOUR = 50000
 # ======================= API روبیکا (پولینگ) =======================
 def api_request(method: str, params: dict = None) -> dict:
     url = BOT_URL + method
-    payload = {}
+    safe = {}
     if params:
-        payload = params.copy()
-        for k in ("reply_markup", "keyboard", "keypad"):
-            if k in payload:
-                payload[k] = json.dumps(payload[k], ensure_ascii=False)
+        for k, v in params.items():
+            if k in ("reply_markup", "keyboard", "keypad"):
+                safe[k] = json.dumps(v, ensure_ascii=False)
+            else:
+                safe[k] = v
     try:
-        data = json.dumps(payload, ensure_ascii=False).encode('utf-8') if payload else b'{}'
-        req = urllib.request.Request(
-            url,
-            data=data,
-            headers={"Content-Type": "application/json"},
-            method="POST"
-        )
-        with urllib.request.urlopen(req, timeout=30) as r:
-            text = r.read()
+        if safe:
+            query = urllib.parse.urlencode(safe, doseq=True)
+            full = url + "?" + query
+            req = urllib.request.Request(full)
+            with urllib.request.urlopen(req, timeout=30) as r:
+                text = r.read()
+        else:
+            req = urllib.request.Request(url)
+            with urllib.request.urlopen(req, timeout=15) as r:
+                text = r.read()
         try:
             return json.loads(text)
         except Exception:
