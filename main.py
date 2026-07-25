@@ -1,106 +1,30 @@
 # -*- coding: utf-8 -*-
 """
-ربات روبیکا (روبیکا) - نسخه کتابخانه rubika-bot (تک‌فایل)
-روش اتصال: کتابخانه rubika-bot با endpoint رسمی botapi.rubika.ir/v3
+ربات روبیکا (روبیکا) - نسخه کامل با کتابخانه rubika-bot
 پنل ادمین حرفه‌ای با رمز: ali
-تمام قابلیت‌های مدل بازی در یک فایل
+تمام دسته‌بندی‌های درخواستی در یک فایل
 """
+import json, os, time, random
+from rubika_bot.requests import get_updates, send_message
+from rubika_bot.models import Keypad, KeypadRow, Button
 
-import json
-import os
-import time
-import random
-from typing import Dict, Any
-
-# تلاش برای استفاده از کتابخانه روبیکا
-try:
-    from rubika_bot.requests import get_updates, send_message
-except ImportError:
-    # اگر کتابخانه نصب نیست، از urllib به عنوان جایگزین استفاده می‌شود
-    import urllib.request
-    import urllib.parse
-
-    # Endpoint رسمی روبیکا
-    BOT_URL = "https://botapi.rubika.ir/v3/"
-
-    def api_request(method: str, params: dict = None):
-        # به دلیل محدودیت‌های محیط، این تابع جایگزین ساده ارائه می‌دهد
-        return {}
-
-    def get_updates(token, limit=10, timeout=20):
-        url = f"{BOT_URL}{token}/getUpdates"
-        payload = {"limit": limit, "timeout": timeout}
-        try:
-            data = json.dumps(payload, ensure_ascii=False).encode('utf-8')
-            req = urllib.request.Request(
-                url,
-                data=data,
-                headers={"Content-Type": "application/json"},
-                method="POST"
-            )
-            with urllib.request.urlopen(req, timeout=30) as r:
-                return json.loads(r.read())
-        except Exception as e:
-            print("get_updates error:", e)
-            return {"result": []}
-
-    def send_message(token, chat_id, text, reply_markup=None):
-        url = f"{BOT_URL}{token}/sendMessage"
-        payload = {"chat_id": chat_id, "text": text}
-        if reply_markup is not None:
-            payload["reply_markup"] = reply_markup
-        try:
-            data = json.dumps(payload, ensure_ascii=False).encode('utf-8')
-            req = urllib.request.Request(
-                url,
-                data=data,
-                headers={"Content-Type": "application/json"},
-                method="POST"
-            )
-            with urllib.request.urlopen(req, timeout=30) as r:
-                return json.loads(r.read())
-        except Exception as e:
-            print("send_message error:", e)
-            return {}
-else:
-    # اگر کتابخانه موجود است، تنظیمات پیش‌فرض را انجام می‌دهیم
-    BOT_URL = None
-
-# ======================= تنظیمات =======================
-# توکن باید از ربات روبیکا (BotFather) دریافت شود
 TOKEN = "BCIIGB0VOWSDTSZOUCYXRQBTAJBNESZYGEJDPQVAGKLJKDXBBJPECEPUOWGKQTAS"
-
-# اگر از کتابخانه rubika-bot استفاده می‌شود، توکن مستقیماً به متدها ارسال می‌شود
 ADMINS = ["admin_username", 1570690274]
 ADMIN_PASSWORD = "ali"
 
-# اقتصاد
-DEFAULT_COINS = 1000
-DEFAULT_GEMS = 10
-DEFAULT_XP = 0
-MINER_MAX_LEVEL = 1000
-MINER_BASE_PER_LEVEL = 100
-BANK_SHORT_RATE = 0.05
-BANK_LONG_RATE = 0.12
-PVP_STAKE = 100
-PVE_STAKE = 80
-MAX_COINS_HOUR = 50000
-
-# ======================= داده‌ها =======================
 DATA_FILE = "players.json"
 CLANS_FILE = "clans.json"
 PENDING_FILE = "pending.json"
 
-# ======================= بارگذاری/ذخیره =======================
 def load_json(fname, default):
     if not os.path.exists(fname):
         with open(fname, "w", encoding="utf-8") as f:
             json.dump(default, f, ensure_ascii=False, indent=2)
-    with open(fname, "r", encoding="utf-8") as f:
-        try:
+    try:
+        with open(fname, "r", encoding="utf-8") as f:
             return json.load(f)
-        except:
-            return default
+    except:
+        return default
 
 def save_json(fname, data):
     with open(fname, "w", encoding="utf-8") as f:
@@ -113,106 +37,75 @@ pending = load_json(PENDING_FILE, [])
 def save_all():
     save_json(DATA_FILE, players)
     save_json(PENDING_FILE, pending)
+    save_json(CLANS_FILE, clans)
 
-# ======================= ساختار کاربر =======================
-def ensure_user_struct(user_id):
-    uid = str(user_id)
-    if uid not in players:
-        players[uid] = {
-            "name": None,
-            "coins": DEFAULT_COINS,
-            "gems": DEFAULT_GEMS,
-            "xp": DEFAULT_XP,
-            "level": 1,
-            "started": False,
-            "step": None,
-            "admin_step": None,
-            "admin_logged": False,
-            "store_coins": 0,
-            "store_gems": 0,
-            "vip_days": 0,
-            "gift_codes": [],
-            "gift_cards": [],
-            "spin_wins": 0,
-            "spin_used_today": False,
-            "daily_streak": 0,
-            "last_streak_day": 0,
-            "weekly_claimed": False,
-            "monthly_claimed": False,
-            "income_mission": 0,
-            "avatar": None,
-            "bio": "",
-            "frame": None,
-            "title": "تازه‌وارد",
-            "badges": [],
-            "join_date": int(time.time()),
-            "stats": {"wins": 0, "losses": 0, "battles": 0, "miners_collected": 0, "clan": None},
-            "miner_level": 0,
-            "miner_type": "سنگی",
-            "miner_fuel": 100,
-            "miner_speed": 1,
-            "miner_accelerator": 0,
-            "miner_auto": False,
-            "miner_offline": False,
-            "miner_last_collect": 0,
-            "miner_golden_unlocked": False,
-            "miner_legendary_unlocked": False,
-            "bank_amount": 0,
-            "bank_time": 0,
-            "bank_loan": 0,
-            "bank_loan_due": 0,
-            "bank_insurance": False,
-            "pvp_wins": 0,
-            "pve_wins": 0,
-            "boss_wins": 0,
-            "group_war_wins": 0,
-            "duel_wins": 0,
-            "league_points": 0,
-            "clan": None,
-            "clan_role": "عضو",
-            "inventory": {},
-            "pets": {},
-            "purchased": [],
-            "friends": [],
-            "blocked": [],
-            "friend_requests": [],
-            "market_listings": [],
-            "job": None,
-            "job_level": 1,
-            "cities_visited": ["شهر اصلی"],
-            "territory": "شهر اصلی",
-            "notifications": [],
-            "logs": [],
-            "prestige": 0,
-            "loyalty_points": 0,
-            "event_bonus_active": False,
-            "requests": [],
-        }
-        save_all()
-
-# ======================= ادمین حرفه‌ای =======================
-def is_admin_by_name(name: str) -> bool:
-    if not name:
-        return False
+# ======================= ادمین =======================
+def is_admin_by_name(name):
+    if not name: return False
     for a in ADMINS:
         if isinstance(a, str) and a.lower() == name.lower():
             return True
     return False
 
-def is_admin_num(user_id) -> bool:
+def is_admin_num(uid):
     try:
-        return int(user_id) in [x for x in ADMINS if isinstance(x, int)]
+        return int(uid) in [x for x in ADMINS if isinstance(x, int)]
     except:
         return False
 
-def check_admin_access(user_id, user_name=None) -> bool:
-    return is_admin_by_name(user_name or "") or is_admin_num(user_id)
+def check_admin(uid, name=""):
+    return is_admin_by_name(name) or is_admin_by_name("") or is_admin_num(str(uid))
 
-# ======================= منوها (کامل) =======================
-# منو اصلی با تمام دسته‌بندی‌های درخواستی
+# ======================= کاربر =======================
+def ensure_user_struct(uid):
+    sid = str(uid)
+    if sid not in players:
+        players[sid] = {
+            "name": None, "coins": 1000, "gems": 10, "xp": 0, "level": 1,
+            "started": False, "prev": None, "step": None,
+            "admin_logged": False,
+            "vip_days": 0, "gift_codes": [], "spin_used_today": False,
+            "daily_streak": 0, "weekly_claimed": False, "monthly_claimed": False,
+            "income_mission": 0, "avatar": None, "bio": "", "frame": None,
+            "title": "تازه‌وارد", "badges": [], "join_date": int(time.time()),
+            "stats": {"wins": 0, "losses": 0, "battles": 0, "miners_collected": 0, "clan": None},
+            "miner_level": 0, "miner_type": "سنگی", "miner_fuel": 100,
+            "miner_speed": 1, "miner_accelerator": 0, "miner_auto": False,
+            "miner_offline": False, "miner_last_collect": 0,
+            "miner_golden_unlocked": False, "miner_legendary_unlocked": False,
+            "bank_amount": 0, "bank_time": 0, "bank_loan": 0, "bank_loan_due": 0,
+            "bank_insurance": False, "pvp_wins": 0, "pve_wins": 0, "boss_wins": 0,
+            "group_war_wins": 0, "duel_wins": 0, "league_points": 0,
+            "clan": None, "clan_role": "عضو", "inventory": {}, "pets": {},
+            "purchased": [], "friends": [], "blocked": [],
+            "friend_requests": [], "market_listings": [], "job": None,
+            "job_level": 1, "cities_visited": ["شهر اصلی"], "territory": "شهر اصلی",
+            "notifications": [], "logs": [], "prestige": 0, "loyalty_points": 0,
+            "event_bonus_active": False, "requests": []
+        }
+        save_all()
 
-def kb_main(is_admin=False):
-    kb = [
+# ======================= کیبوردها =======================
+
+def kb(rows_list):
+    rows = []
+    for r in rows_list:
+        buttons = [Button(
+            id=str(i),
+            button_text=str(b),
+            button_selection=None,
+            button_calendar=None,
+            button_number_picker=None,
+            button_string_picker=None,
+            button_location=None,
+            button_textbox=None,
+            button_link=None
+        ) for i, b in enumerate(r)]
+        rows.append(KeypadRow(buttons=buttons))
+    return Keypad(rows=rows, resize_keyboard=True, on_time_keyboard=False)
+
+def kb_main(is_adm=False):
+    rows = [
         ["💰 اقتصاد بازی", "👤 پروفایل"],
         ["⛏️ ماینر", "🏦 بانک"],
         ["⚔️ مبارزه", "🏰 کلن"],
@@ -224,1083 +117,449 @@ def kb_main(is_admin=False):
         ["🌍 نقشه", "🤖 سیستم‌ها"],
         ["💎 درآمدزایی", "🌟 اعتیادآور"],
     ]
-    if is_admin:
-        kb.append(["🔧 پنل ادمین حرفه‌ای"])
-    kb.append(["❓ راهنما", "🔙 خروج"])
-    return {"keyboard": kb, "resize_keyboard": True}
+    if is_adm:
+        rows.append(["🔧 پنل ادمین حرفه‌ای"])
+    rows.append(["❓ راهنما", "🔙 خروج"])
+    return kb(rows)
 
-def kb_back_only():
-    return {"keyboard": [["🔙 بازگشت"]], "resize_keyboard": True}
+def kb_econ(): return kb([["🛒 فروشگاه سکه","💎 خرید جم"],["🎁 بسته‌های ویژه","💳 خرید VIP"],["🎟 کد هدیه","🎫 گیفت کارت"],["🎲 گردونه شانس","🎰 اسلات"],["🎁 جایزه روزانه","📆 هفتگی"],["📅 ماهانه","🔥 استریک"],["💰 ماموریت درآمدی","🔙 بازگشت"]])
+def kb_prof(): return kb([["🖼 آواتار","📸 قاب پروفایل"],["📝 بیو","🏷 عنوان اختصاصی"],["📊 سطح و XP","🏅 نشان‌ها"],["📅 تاریخ عضویت","📈 آمار کامل"],["🏆 رکوردها","🔙 بازگشت"]])
+def kb_miner(): return kb([["📥 جمع‌آوری","🔼 ارتقا"],["⛽ سوخت","⚡ سرعت"],["🚀 شتاب‌دهنده","🔧 تعمیر"],["🤖 اتوماتیک","💤 آفلاین"],["🌟 طلایی","🐉 افسانه‌ای"],["🔙 بازگشت"]])
+def kb_bank(): return kb([["⏱ سپرده کوتاه","⏳ بلندمدت"],["💵 وام","📊 سود متغیر"],["📈 صندوق سرمایه","🛡 بیمه"],["💼 گاوصندوق","🏦 انتقال بانکی"],["🔙 بازگشت"]])
+def kb_combat(): return kb([["⚔️ PvP","🐉 PvE"],["👑 باس فایت","👥 جنگ گروهی"],["⚡ دوئل","🏅 لیگ"],["🏆 تورنمنت","🎲 نبرد تصادفی"],["📊 نبرد رتبه‌ای","🔙 بازگشت"]])
+def kb_clan(): return kb([["🏗 ساخت کلن","👥 عضوگیری"],["💬 چت کلن","📈 ارتقا"],["💰 خزانه","⚔️ جنگ کلن"],["🎯 ماموریت کلن","📊 رتبه کلن"],["🔙 بازگشت"]])
+def kb_mission(): return kb([["📋 روزانه","📅 هفتگی"],["📆 ماهانه","🌸 فصلی"],["🔍 مخفی","⭐ ویژه"],["🔙 بازگشت"]])
+def kb_leader(): return kb([["💰 ثروتمندترین","📊 بیشترین لول"],["⛏ بهترین ماینر","🏆 بیشترین برد"],["🏰 بهترین کلن","📢 بیشترین دعوت"],["🔥 بیشترین فعالیت","🔙 بازگشت"]])
+def kb_items(): return kb([["⚡ بوستر","🛡 سپر"],["💣 بمب","🎁 جعبه شانس"],["🔑 کلید","📦 صندوق"],["🐾 پت","👕 لباس"],["🎨 اسکین","✨ افکت"],["🔙 بازگشت"]])
+def kb_pets(): return kb([["🐕 خرید پت","📈 ارتقا پت"],["🍖 غذا","⭐ تجربه"],["💪 مهارت","🎲 کمیاب"],["🐉 افسانه‌ای","🔙 بازگشت"]])
+def kb_shop(): return kb([["🎁 آیتم","🎨 اسکین"],["💎 VIP","⚡ بوستر"],["📦 جعبه","💰 بسته اقتصادی"],["🔙 بازگشت"]])
+def kb_events(): return kb([["🎄 کریسمس","🌸 نوروز"],["🍉 یلدا","🌙 رمضان"],["🛒 جمعه سیاه","🎃 هالووین"],["🎉 آخر هفته","🔙 بازگشت"]])
+def kb_social(): return kb([["💬 چت خصوصی","👥 دوستان"],["🚫 بلاک","📨 دعوت"],["🎁 ارسال هدیه","📩 درخواست دوستی"],["👀 مشاهده پروفایل","🔙 بازگشت"]])
+def kb_market(): return kb([["📈 خرید و فروش","🏷 مزایده"],["💱 بازار آزاد","⏰ قیمت لحظه‌ای"],["💸 مالیات معامله","🔙 بازگشت"]])
+def kb_minigames(): return kb([["✊ سنگ کاغذ قیچی","🎲 حدس عدد"],["🎲 دوز","♟ شطرنج"],["🎲 تاس","🎰 رولت"],["♠ بلک جک","🧠 حافظه"],["⚡ مسابقه سرعت","🔙 بازگشت"]])
+def kb_jobs(): return kb([["⛏ معدنچی","🌾 کشاورز"],["💼 تاجر","💻 برنامه‌نویس"],["👮 پلیس","⚕ پزشک"],["📈 سرمایه‌گذار","🚀 کارآفرین"],["🔙 بازگشت"]])
+def kb_map(): return kb([["🏙 شهرها","✈ سفر"],["🎯 مأموریت شهری","⛏ منابع"],["🗺 سرزمین","🏁 فتح مناطق"],["🔙 بازگشت"]])
+def kb_systems(): return kb([["🔔 اعلان","🛡 ضدتقلب"],["📜 لاگ کامل","💾 بکاپ"],["📢 گزارش","⚙ تنظیمات بازی"],["📊 اقتصاد پویا","🌐 API"],["🔙 بازگشت"]])
+def kb_mon(): return kb([["💎 خرید سکه","💎 خرید جم"],["🎖 اشتراک VIP","📢 تبلیغات"],["🤝 اسپانسر","📢 مأموریت تبلیغاتی"],["📺 همکاری کانال","💰 فروش آیتم"],["🎨 فروش اسکین","🎟 Battle Pass"],["🍀 Lucky Pass","🌸 Season Pass"],["🔙 بازگشت"]])
+def kb_add(): return kb([["🔥 استریک ورود","🎲 چرخ شانس"],["📦 جعبه ۶ ساعت","🎲 مأموریت تصادفی"],["🎉 رویداد محدود","🏅 دستاوردها"],["🧩 کلکسیون","💎 امتیاز وفاداری"],["♾ لول بی‌نهایت","🔄 Prestige"],["🔙 بازگشت"]])
+def kb_admin_panel(): return kb([["➕ دادن سکه","➖ گرفتن سکه"],["💎 دادن جم","📣 پیام همگانی"],["🪙 سکه همگانی","📊 آمار کاربران"],["📁 لاگ سیستم","⚙ تنظیمات بازی"],["🛡 ضدتقلب","💾 بکاپ دستی"],["🔴 خروج از ادمین","🔙 بازگشت اصلی"]])
 
-def kb_economy():
-    return {"keyboard": [
-        ["🛒 فروشگاه سکه", "💎 خرید جم"],
-        ["🎁 بسته‌های ویژه", "💳 خرید VIP"],
-        ["🎟 کد هدیه", "🎫 گیفت کارت"],
-        ["🎲 گردونه شانس", "🎰 اسلات"],
-        ["🎁 جایزه روزانه", "📆 هفتگی"],
-        ["📅 ماهانه", "🔥 استریک"],
-        ["💰 ماموریت درآمدی", "🔙 بازگشت"]
-    ], "resize_keyboard": True}
+# ======================= منطق =======================
+MINER_MAX_LEVEL = 1000
+MINER_BASE = 100
+BANK_SHORT = 0.05
+BANK_LONG = 0.12
+PVP_STAKE = 100
+PVE_STAKE = 80
 
-def kb_profile():
-    return {"keyboard": [
-        ["🖼 آواتار", "📸 قاب پروفایل"],
-        ["📝 بیو", "🏷 عنوان اختصاصی"],
-        ["📊 سطح و XP", "🏅 نشان‌ها"],
-        ["📅 تاریخ عضویت", "📈 آمار کامل"],
-        ["🏆 رکوردها", "🔙 بازگشت"]
-    ], "resize_keyboard": True}
-
-def kb_miner():
-    return {"keyboard": [
-        ["📥 جمع‌آوری", "🔼 ارتقا"],
-        ["⛽ سوخت", "⚡ سرعت"],
-        ["🚀 شتاب‌دهنده", "🔧 تعمیر"],
-        ["🤖 اتوماتیک", "💤 آفلاین"],
-        ["🌟 طلایی", "🐉 افسانه‌ای"],
-        ["🔙 بازگشت"]
-    ], "resize_keyboard": True}
-
-def kb_bank():
-    return {"keyboard": [
-        ["⏱ سپرده کوتاه", "⏳ بلندمدت"],
-        ["💵 وام", "📊 سود متغیر"],
-        ["📈 صندوق سرمایه", "🛡 بیمه"],
-        ["💼 گاوصندوق", "🏦 انتقال بانکی"],
-        ["🔙 بازگشت"]
-    ], "resize_keyboard": True}
-
-def kb_combat():
-    return {"keyboard": [
-        ["⚔️ PvP", "🐉 PvE"],
-        ["👑 باس فایت", "👥 جنگ گروهی"],
-        ["⚡ دوئل", "🏅 لیگ"],
-        ["🏆 تورنمنت", "🎲 نبرد تصادفی"],
-        ["📊 نبرد رتبه‌ای", "🔙 بازگشت"]
-    ], "resize_keyboard": True}
-
-def kb_clan():
-    return {"keyboard": [
-        ["🏗 ساخت کلن", "👥 عضوگیری"],
-        ["💬 چت کلن", "📈 ارتقا"],
-        ["💰 خزانه", "⚔️ جنگ کلن"],
-        ["🎯 ماموریت کلن", "📊 رتبه کلن"],
-        ["🔙 بازگشت"]
-    ], "resize_keyboard": True}
-
-def kb_missions():
-    return {"keyboard": [
-        ["📋 روزانه", "📅 هفتگی"],
-        ["📆 ماهانه", "🌸 فصلی"],
-        ["🔍 مخفی", "⭐ ویژه"],
-        ["🔙 بازگشت"]
-    ], "resize_keyboard": True}
-
-def kb_leaderboard():
-    return {"keyboard": [
-        ["💰 ثروتمندترین", "📊 بیشترین لول"],
-        ["⛏ بهترین ماینر", "🏆 بیشترین برد"],
-        ["🏰 بهترین کلن", "📢 بیشترین دعوت"],
-        ["🔥 بیشترین فعالیت", "🔙 بازگشت"]
-    ], "resize_keyboard": True}
-
-def kb_items():
-    return {"keyboard": [
-        ["⚡ بوستر", "🛡 سپر"],
-        ["💣 بمب", "🎁 جعبه شانس"],
-        ["🔑 کلید", "📦 صندوق"],
-        ["🐾 پت", "👕 لباس"],
-        ["🎨 اسکین", "✨ افکت"],
-        ["🔙 بازگشت"]
-    ], "resize_keyboard": True}
-
-def kb_pets():
-    return {"keyboard": [
-        ["🐕 خرید پت", "📈 ارتقا پت"],
-        ["🍖 غذا", "⭐ تجربه"],
-        ["💪 مهارت", "🎲 کمیاب"],
-        ["🐉 افسانه‌ای", "🔙 بازگشت"]
-    ], "resize_keyboard": True}
-
-def kb_shop():
-    return {"keyboard": [
-        ["🎁 آیتم", "🎨 اسکین"],
-        ["💎 VIP", "⚡ بوستر"],
-        ["📦 جعبه", "💰 بسته اقتصادی"],
-        ["🔙 بازگشت"]
-    ], "resize_keyboard": True}
-
-def kb_events():
-    return {"keyboard": [
-        ["🎄 کریسمس", "🌸 نوروز"],
-        ["🍉 یلدا", "🌙 رمضان"],
-        ["🛒 جمعه سیاه", "🎃 هالووین"],
-        ["🎉 آخر هفته", "🔙 بازگشت"]
-    ], "resize_keyboard": True}
-
-def kb_social():
-    return {"keyboard": [
-        ["💬 چت خصوصی", "👥 دوستان"],
-        ["🚫 بلاک", "📨 دعوت"],
-        ["🎁 ارسال هدیه", "📩 درخواست دوستی"],
-        ["👀 مشاهده پروفایل", "🔙 بازگشت"]
-    ], "resize_keyboard": True}
-
-def kb_market():
-    return {"keyboard": [
-        ["📈 خرید و فروش", "🏷 مزایده"],
-        ["💱 بازار آزاد", "⏰ قیمت لحظه‌ای"],
-        ["💸 مالیات معامله", "🔙 بازگشت"]
-    ], "resize_keyboard": True}
-
-def kb_minigames():
-    return {"keyboard": [
-        ["✊ سنگ کاغذ قیچی", "🎲 حدس عدد"],
-        ["🎲 دوز", "♟ شطرنج"],
-        ["🎲 تاس", "🎰 رولت"],
-        ["♠ بلک جک", "🧠 حافظه"],
-        ["⚡ مسابقه سرعت", "🔙 بازگشت"]
-    ], "resize_keyboard": True}
-
-def kb_jobs():
-    return {"keyboard": [
-        ["⛏ معدنچی", "🌾 کشاورز"],
-        ["💼 تاجر", "💻 برنامه‌نویس"],
-        ["👮 پلیس", "⚕ پزشک"],
-        ["📈 سرمایه‌گذار", "🚀 کارآفرین"],
-        ["🔙 بازگشت"]
-    ], "resize_keyboard": True}
-
-def kb_map():
-    return {"keyboard": [
-        ["🏙 شهرها", "✈ سفر"],
-        ["🎯 مأموریت شهری", "⛏ منابع"],
-        ["🗺 سرزمین", "🏁 فتح مناطق"],
-        ["🔙 بازگشت"]
-    ], "resize_keyboard": True}
-
-def kb_systems():
-    return {"keyboard": [
-        ["🔔 اعلان", "🛡 ضدتقلب"],
-        ["📜 لاگ کامل", "💾 بکاپ"],
-        ["📢 گزارش", "⚙ تنظیمات بازی"],
-        ["📊 اقتصاد پویا", "🌐 API"],
-        ["🔙 بازگشت"]
-    ], "resize_keyboard": True}
-
-def kb_monetization():
-    return {"keyboard": [
-        ["💎 خرید سکه", "💎 خرید جم"],
-        ["🎖 اشتراک VIP", "📢 تبلیغات"],
-        ["🤝 اسپانسر", "📢 مأموریت تبلیغاتی"],
-        ["📺 همکاری کانال", "💰 فروش آیتم"],
-        ["🎨 فروش اسکین", "🎟 Battle Pass"],
-        ["🍀 Lucky Pass", "🌸 Season Pass"],
-        ["🔙 بازگشت"]
-    ], "resize_keyboard": True}
-
-def kb_addictive():
-    return {"keyboard": [
-        ["🔥 استریک ورود", "🎲 چرخ شانس"],
-        ["📦 جعبه ۶ ساعت", "🎲 مأموریت تصادفی"],
-        ["🎉 رویداد محدود", "🏅 دستاوردها"],
-        ["🧩 کلکسیون", "💎 امتیاز وفاداری"],
-        ["♾ لول بی‌نهایت", "🔄 Prestige"],
-        ["🔙 بازگشت"]
-    ], "resize_keyboard": True}
-
-def kb_admin():
-    return {"keyboard": [
-        ["➕ دادن سکه", "➖ گرفتن سکه"],
-        ["💎 دادن جم", "📣 پیام همگانی"],
-        ["🪙 سکه همگانی", "📊 آمار کاربران"],
-        ["📁 لاگ سیستم", "⚙ تنظیمات بازی"],
-        ["🛡 ضدتقلب", "💾 بکاپ دستی"],
-        ["🔴 خروج از ادمین", "🔙 بازگشت اصلی"]
-    ], "resize_keyboard": True}
-
-# ======================= منطق اقتصاد =======================
-def handle_economy(user_id, chat_id, btn):
-    uid = str(user_id)
-    user = players.get(uid)
-    if not user:
-        return send_message(chat_id, "❗ خطا در بارگذاری داده")
+def handle_economy(uid, chat_id, btn):
+    user = players.get(str(uid), {})
     msg = ""
-    if btn == "🛒 فروشگاه سکه":
-        msg = f"💰 فروشگاه سکه<br>سکه فعلی: {user['coins']}<br>بسته‌ها: ۵۰۰۰ سکه = ۱۰۰ سکه | ۲۰۰۰۰ = ۳۰۰ سکه"
-    elif btn == "💎 خرید جم":
-        msg = f"💎 خرید جم<br>جم فعلی: {user['gems']}<br>قیمت: هر جم ≈ ۱۰ سکه"
-    elif btn == "🎁 بسته‌های ویژه":
-        msg = "🎁 بسته‌های ویژه<br>- بسته طلایی<br>- بسته الماس<br>- بسته ویژه فصلی"
-    elif btn == "💳 خرید VIP":
-        user['vip_days'] = user.get('vip_days', 0) + 30
-        save_all()
-        msg = "✅ VIP شما برای ۳۰ روز فعال شد!"
-    elif btn == "🎟 کد هدیه":
-        msg = "🎟 کد هدیه خود را وارد کنید:<br>مثال: GIFT123"
-    elif btn == "🎫 گیفت کارت":
-        msg = "🎫 گیفت کارت فعال است. ۵۰۰ سکه به حساب شما اضافه شد."
-        user['coins'] += 500
+    if btn == "🛒 فروشگاه سکه": msg = f"💰 فروشگاه سکه<br>سکه فعلی: {user['coins']}<br>۵۰۰۰ سکه = ۱۰۰ سکه"
+    elif btn == "💎 خرید جم": msg = f"💎 خرید جم<br>جم فعلی: {user['gems']}"
+    elif btn == "🎁 بسته‌های ویژه": msg = "🎁 بسته‌های ویژه: طلایی، الماسی، فصلی"
+    elif btn == "💳 خرید VIP": user['vip_days'] += 30; msg = "✅ VIP ۳۰ روز فعال شد!"
+    elif btn == "🎟 کد هدیه": msg = "🎟 کد هدیه خود را وارد کنید."
+    elif btn == "🎫 گیفت کارت": user['coins'] += 500; msg = "🎫 +۵۰۰ سکه"
     elif btn == "🎲 گردونه شانس":
-        if user.get('spin_used_today'):
-            msg = "❌ گردونه امروز استفاده شده"
+        if user.get('spin_used_today'): msg = "❌ امروز استفاده شده"
         else:
             r = random.randint(1, 100)
             prize = 50 if r < 20 else (200 if r < 50 else 500)
-            user['coins'] += prize
-            user['spin_used_today'] = True
-            msg = f"🎲 گردونه شانس! شما برنده <b>{prize}</b> سکه شدید!"
+            user['coins'] += prize; user['spin_used_today'] = True
+            msg = f"🎲 برنده <b>{prize}</b> سکه!"
     elif btn == "🎰 اسلات":
-        slots = ["🍒", "🍋", "🍇", "🍊"]
-        s1, s2, s3 = random.choice(slots), random.choice(slots), random.choice(slots)
+        s1, s2, s3 = random.choice(["🍒","🍋","🍇","🍊"]), random.choice(["🍒","🍋","🍇","🍊"]), random.choice(["🍒","🍋","🍇","🍊"])
         if s1 == s2 == s3:
-            user['coins'] += 300
-            msg = f"🎰 <b>{s1}{s2}{s3}</b> برنده شدید! +۳۰۰ سکه"
-        else:
-            msg = f"🎰 {s1}{s2}{s3} باختید!"
-    elif btn == "🎁 جایزه روزانه":
-        user['daily_streak'] = user.get('daily_streak', 0) + 1
-        user['coins'] += 100
-        msg = f"🎁 جایزه روزانه! استریک شما: <b>{user['daily_streak']}</b> (+۱۰۰ سکه)"
+            user['coins'] += 300; msg = f"🎰 <b>{s1}{s2}{s3}</b> برنده +۳۰۰ سکه!"
+        else: msg = f"🎰 {s1}{s2}{s3} باختید."
+    elif btn == "🎁 جایزه روزانه": user['daily_streak'] += 1; user['coins'] += 100; msg = f"🎁 استریک: <b>{user['daily_streak']}</b> (+۱۰۰)"
     elif btn == "📆 هفتگی":
-        if user.get('weekly_claimed'):
-            msg = "❌ هفتگی قبلاً دریافت شده"
-        else:
-            user['weekly_claimed'] = True
-            user['coins'] += 500
-            msg = "📆 جایزه هفتگی دریافت شد! +۵۰۰ سکه"
+        if user.get('weekly_claimed'): msg = "❌ دریافت شده"
+        else: user['weekly_claimed'] = True; user['coins'] += 500; msg = "📆 +۵۰۰ سکه"
     elif btn == "📅 ماهانه":
-        if user.get('monthly_claimed'):
-            msg = "❌ ماهانه قبلاً دریافت شده"
-        else:
-            user['monthly_claimed'] = True
-            user['coins'] += 2000
-            msg = "📅 جایزه ماهانه دریافت شد! +۲۰۰۰ سکه"
-    elif btn == "🔥 استریک":
-        msg = f"🔥 استریک ورود روزانه شما: <b>{user.get('daily_streak', 0)}</b> روز"
-    elif btn == "💰 ماموریت درآمدی":
-        user['income_mission'] = user.get('income_mission', 0) + 1
-        user['coins'] += 200
-        msg = f"💰 ماموریت درآمدی شماره <b>{user['income_mission']}</b> تکمیل شد! +۲۰۰ سکه"
-    else:
-        msg = "💰 اقتصاد بازی را انتخاب کنید."
+        if user.get('monthly_claimed'): msg = "❌ دریافت شده"
+        else: user['monthly_claimed'] = True; user['coins'] += 2000; msg = "📅 +۲۰۰۰ سکه"
+    elif btn == "🔥 استریک": msg = f"🔥 استریک: <b>{user.get('daily_streak',0)}</b>"
+    elif btn == "💰 ماموریت درآمدی": user['income_mission'] += 1; user['coins'] += 200; msg = f"💰 ماموریت {user['income_mission']} (+۲۰۰)"
+    else: msg = "💰 اقتصاد بازی"
     save_all()
-    send_message(chat_id, msg, reply_markup=kb_economy())
+    send_message(TOKEN, chat_id, msg, chat_keypad=kb_econ())
 
-# ======================= منطق پروفایل =======================
-def handle_profile(user_id, chat_id, btn):
-    uid = str(user_id)
-    user = players.get(uid)
-    if not user:
-        return send_message(chat_id, "❗ خطا در بارگذاری داده")
+def handle_profile(uid, chat_id, btn):
+    user = players.get(str(uid), {})
     msg = ""
-    if btn == "🖼 آواتار":
-        msg = f"🖼 آواتار فعلی: {'تنظیم شده' if user.get('avatar') else 'پیش‌فرض'}"
-    elif btn == "📸 قاب پروفایل":
-        user['frame'] = "طلایی"
-        msg = "📸 قاب طلایی فعال شد!"
-    elif btn == "📝 بیو":
-        msg = f"📝 بیو فعلی: {user.get('bio', 'خالی')}"
-    elif btn == "🏷 عنوان اختصاصی":
-        msg = f"🏷 عنوان: {user.get('title', 'تازه‌وارد')}"
-    elif btn == "📊 سطح و XP":
-        msg = f"📊 سطح: <b>{user.get('level', 1)}</b> | XP: <b>{user.get('xp', 0)}</b>"
-    elif btn == "🏅 نشان‌ها":
-        badges = user.get('badges', [])
-        msg = f"🏅 نشان‌ها: {', '.join(badges) if badges else 'ندارید'}"
-    elif btn == "📅 تاریخ عضویت":
-        msg = f"📅 تاریخ عضویت: {time.strftime('%Y/%m/%d', time.localtime(user.get('join_date', 0)))}"
+    if btn == "🖼 آواتار": msg = f"🖼 آواتار: {'تنظیم شده' if user.get('avatar') else 'پیش‌فرض'}"
+    elif btn == "📸 قاب پروفایل": user['frame'] = "طلایی"; msg = "📸 قاب طلایی فعال!"
+    elif btn == "📝 بیو": msg = f"📝 بیو: {user.get('bio','خالی')}"
+    elif btn == "🏷 عنوان اختصاصی": msg = f"🏷 عنوان: {user.get('title','تازه‌وارد')}"
+    elif btn == "📊 سطح و XP": msg = f"📊 سطح: <b>{user.get('level',1)}</b> | XP: <b>{user.get('xp',0)}</b>"
+    elif btn == "🏅 نشان‌ها": badges = user.get('badges',[]); msg = f"🏅 نشان‌ها: {', '.join(badges) if badges else 'ندارید'}"
+    elif btn == "📅 تاریخ عضویت": msg = f"📅 عضویت: {time.strftime('%Y/%m/%d', time.localtime(user.get('join_date',0)))}"
     elif btn == "📈 آمار کامل":
-        s = user.get('stats', {})
-        msg = (f"📊 برد: <b>{s.get('wins', 0)}</b> | باخت: <b>{s.get('losses', 0)}</b><br>"
-               f"⚔ نبرد: <b>{s.get('battles', 0)}</b> | ماینر جمع‌شده: <b>{s.get('miners_collected', 0)}</b>")
-    elif btn == "🏆 رکوردها":
-        msg = f"🏆 رکورد شخصی: سطح <b>{user.get('level', 1)}</b> | لول ماینر <b>{user.get('miner_level', 0)}</b>"
-    else:
-        msg = "👤 پروفایل خود را مدیریت کنید."
+        s = user.get('stats',{}); msg = f"📊 برد: <b>{s.get('wins',0)}</b> | باخت: <b>{s.get('losses',0)}</b><br>⚔ نبرد: <b>{s.get('battles',0)}</b>"
+    elif btn == "🏆 رکوردها": msg = f"🏆 رکورد: سطح <b>{user.get('level',1)}</b> | ماینر <b>{user.get('miner_level',0)}</b>"
+    else: msg = "👤 پروفایل"
     save_all()
-    send_message(chat_id, msg, reply_markup=kb_profile())
+    send_message(TOKEN, chat_id, msg, chat_keypad=kb_prof())
 
-# ======================= منطق ماینر =======================
-def handle_miner(user_id, chat_id, btn):
-    uid = str(user_id)
-    user = players.get(uid)
-    if not user:
-        return send_message(chat_id, "❗ خطا")
+def handle_miner(uid, chat_id, btn):
+    user = players.get(str(uid), {})
     msg = ""
+    level = user.get('miner_level', 0)
     if btn == "📥 جمع‌آوری":
-        level = user.get('miner_level', 0)
-        if level <= 0:
-            msg = "❌ ماینر شما ارتقا نیافته"
+        last = user.get('miner_last_collect', 0)
+        now = time.time()
+        hours = max(0, int((now - last)//3600))
+        amt = hours * MINER_BASE * level
+        if amt <= 0: msg = "⛏ هنوز چیزی برای جمع‌آوری نیست."
         else:
-            last = user.get('miner_last_collect', 0)
-            now = time.time()
-            hours = max(0, int((now - last) // 3600))
-            amt = hours * MINER_BASE_PER_LEVEL * level
-            if amt <= 0:
-                msg = "⛏ هنوز چیزی برای جمع‌آوری نیست."
-            else:
-                user['coins'] += amt
-                user['miner_last_collect'] = int(now)
-                user['stats']['miners_collected'] = user.get('stats', {}).get('miners_collected', 0) + 1
-                msg = f"⛏ +{amt} سکه از ماینر جمع‌آوری شد!"
+            user['coins'] += amt; user['miner_last_collect'] = int(now)
+            user['stats']['miners_collected'] = user.get('stats',{}).get('miners_collected',0) + 1
+            msg = f"⛏ +{amt} سکه جمع‌آوری شد!"
     elif btn == "🔼 ارتقا":
-        cost = (user.get('miner_level', 0) + 1) * 200
+        cost = (level + 1) * 200
         if user['coins'] >= cost:
-            user['coins'] -= cost
-            user['miner_level'] += 1
-            msg = f"🔼 ماینر ارتقا یافت! سطح جدید: <b>{user['miner_level']}</b>"
-        else:
-            msg = f"❌ سکه کافی نیست. نیاز: <b>{cost}</b>"
-    elif btn == "⛽ سوخت":
-        msg = f"⛽ سوخت ماینر: <b>{user.get('miner_fuel', 100)}%</b>"
-    elif btn == "⚡ سرعت":
-        msg = f"⚡ سرعت استخراج: <b>{user.get('miner_speed', 1)}x</b>"
-    elif btn == "🚀 شتاب‌دهنده":
-        user['miner_accelerator'] = user.get('miner_accelerator', 0) + 1
-        msg = "🚀 شتاب‌دهنده فعال شد! (+۱ ساعت سرعت دوبرابر)"
-    elif btn == "🔧 تعمیر":
-        user['miner_fuel'] = 100
-        msg = "🔧 ماینر تعمیر شد. سوخت ۱۰۰%"
-    elif btn == "🤖 اتوماتیک":
-        user['miner_auto'] = True
-        msg = "🤖 ارتقای اتوماتیک فعال شد!"
-    elif btn == "💤 آفلاین":
-        user['miner_offline'] = True
-        msg = "💤 استخراج آفلاین فعال شد!"
+            user['coins'] -= cost; user['miner_level'] += 1; msg = f"🔼 ماینر سطح <b>{user['miner_level']}</b>"
+        else: msg = f"❌ نیاز به <b>{cost}</b> سکه"
+    elif btn == "⛽ سوخت": msg = f"⛽ سوخت: <b>{user.get('miner_fuel',100)}%</b>"
+    elif btn == "⚡ سرعت": msg = f"⚡ سرعت: <b>{user.get('miner_speed',1)}x</b>"
+    elif btn == "🚀 شتاب‌دهنده": user['miner_accelerator'] += 1; msg = "🚀 شتاب‌دهنده (+۱ ساعت دوبرابر)"
+    elif btn == "🔧 تعمیر": user['miner_fuel'] = 100; msg = "🔧 ماینر تعمیر شد. سوخت ۱۰۰%"
+    elif btn == "🤖 اتوماتیک": user['miner_auto'] = True; msg = "🤖 ارتقای اتوماتیک فعال!"
+    elif btn == "💤 آفلاین": user['miner_offline'] = True; msg = "💤 استخراج آفلاین فعال!"
     elif btn == "🌟 طلایی":
-        if user.get('miner_level', 0) >= 500:
-            user['miner_type'] = "طلایی"
-            user['miner_golden_unlocked'] = True
-            msg = "🌟 ماینر طلایی فعال شد!"
-        else:
-            msg = "❌ برای طلایی شدن به سطح ۵۰۰ ماینر نیاز دارید."
+        if level >= 500: user['miner_type'] = "طلایی"; user['miner_golden_unlocked'] = True; msg = "🌟 ماینر طلایی!"
+        else: msg = "❌ نیاز به سطح ۵۰۰"
     elif btn == "🐉 افسانه‌ای":
-        if user.get('miner_level', 0) >= 900:
-            user['miner_type'] = "افسانه‌ای"
-            user['miner_legendary_unlocked'] = True
-            msg = "🐉 ماینر افسانه‌ای فعال شد!"
-        else:
-            msg = "❌ برای افسانه‌ای شدن به سطح ۹۰۰ ماینر نیاز دارید."
-    else:
-        msg = "⛏ ماینر خود را مدیریت کنید."
+        if level >= 900: user['miner_type'] = "افسانه‌ای"; user['miner_legendary_unlocked'] = True; msg = "🐉 ماینر افسانه‌ای!"
+        else: msg = "❌ نیاز به سطح ۹۰۰"
+    else: msg = "⛏ ماینر"
     save_all()
-    send_message(chat_id, msg, reply_markup=kb_miner())
+    send_message(TOKEN, chat_id, msg, chat_keypad=kb_miner())
 
-# ======================= منطق بانک =======================
-def handle_bank(user_id, chat_id, btn):
-    uid = str(user_id)
-    user = players.get(uid)
-    if not user:
-        return send_message(chat_id, "❗ خطا")
+def handle_bank(uid, chat_id, btn):
+    user = players.get(str(uid), {})
     msg = ""
     if btn == "⏱ سپرده کوتاه":
-        amount = 500
-        if user['coins'] >= amount:
-            user['coins'] -= amount
-            user['bank_amount'] = amount
-            user['bank_time'] = time.time()
-            msg = f"💰 <b>{amount}</b> سکه در سپرده کوتاه‌مدت با سود {int(BANK_SHORT_RATE*100)}% قرار گرفت."
-        else:
-            msg = "❌ سکه کافی نیست."
+        if user['coins'] >= 500:
+            user['coins'] -= 500; user['bank_amount'] = 500; user['bank_time'] = time.time()
+            msg = f"💰 <b>۵۰۰</b> سکه در سپرده کوتاه ({int(BANK_SHORT*100)}%)"
+        else: msg = "❌ سکه کافی نیست"
     elif btn == "⏳ بلندمدت":
-        amount = 2000
-        if user['coins'] >= amount:
-            user['coins'] -= amount
-            user['bank_amount'] = amount
-            user['bank_time'] = time.time()
-            msg = f"💰 <b>{amount}</b> سکه در سپرده بلندمدت با سود {int(BANK_LONG_RATE*100)}% قرار گرفت."
-        else:
-            msg = "❌ سکه کافی نیست."
+        if user['coins'] >= 2000:
+            user['coins'] -= 2000; user['bank_amount'] = 2000; user['bank_time'] = time.time()
+            msg = f"💰 <b>۲۰۰۰</b> سکه در سپرده بلندمدت ({int(BANK_LONG*100)}%)"
+        else: msg = "❌ سکه کافی نیست"
     elif btn == "💵 وام":
         if user.get('bank_loan', 0) <= 0:
-            user['bank_loan'] = 1000
-            user['coins'] += 1000
-            msg = "💵 وام <b>۱۰۰۰</b> سکه دریافت شد. باید بازپرداخت کنید."
-        else:
-            msg = "❌ وام فعلی دارید."
-    elif btn == "📊 سود متغیر":
-        msg = f"📊 سود کوتاه: <b>{int(BANK_SHORT_RATE*100)}%</b> | بلند: <b>{int(BANK_LONG_RATE*100)}%</b>"
-    elif btn == "📈 صندوق سرمایه":
-        msg = "📈 صندوق سرمایه فعال است. سود روزانه به حساب شما اضافه می‌شود."
-    elif btn == "🛡 بیمه":
-        user['bank_insurance'] = True
-        msg = "🛡 بیمه سرمایه فعال شد."
-    elif btn == "💼 گاوصندوق":
-        msg = "💼 گاوصندوق امن است. هیچ مالیاتی از سپرده شما کسر نمی‌شود."
-    elif btn == "🏦 انتقال بانکی":
-        msg = "🏦 انتقال بانکی بین کاربران فعال است. شماره کاربر مقصد را وارد کنید."
-    else:
-        msg = "🏦 بانک را انتخاب کنید."
-    # پرداخت سود خودکار
-    if user.get('bank_amount', 0) > 0 and user.get('bank_time', 0) > 0:
+            user['bank_loan'] = 1000; user['coins'] += 1000; msg = "💵 وام <b>۱۰۰۰</b> دریافت شد"
+        else: msg = "❌ وام فعلی دارید"
+    elif btn == "📊 سود متغیر": msg = f"📊 کوتاه: <b>{int(BANK_SHORT*100)}%</b> | بلند: <b>{int(BANK_LONG*100)}%</b>"
+    elif btn == "📈 صندوق سرمایه": msg = "📈 صندوق سرمایه فعال است"
+    elif btn == "🛡 بیمه": user['bank_insurance'] = True; msg = "🛡 بیمه فعال شد"
+    elif btn == "💼 گاوصندوق": msg = "💼 گاوصندوق امن است. مالیات صفر."
+    elif btn == "🏦 انتقال بانکی": msg = "🏦 انتقال بانکی فعال است"
+    else: msg = "🏦 بانک"
+    # پرداخت خودکار سود
+    if user.get('bank_amount',0) > 0 and user.get('bank_time',0) > 0:
         if time.time() - user['bank_time'] >= 24*3600:
             deposit = user['bank_amount']
-            rate = BANK_LONG_RATE if deposit >= 1000 else BANK_SHORT_RATE
+            rate = BANK_LONG if deposit >= 1000 else BANK_SHORT
             interest = int(deposit * rate)
             user['coins'] += deposit + interest
-            user['bank_amount'] = 0
-            user['bank_time'] = 0
-            msg += f"<br>📢 سود بانکی پرداخت شد: +<b>{deposit + interest}</b> سکه"
+            user['bank_amount'] = 0; user['bank_time'] = 0
+            msg += f"<br>📢 سود پرداخت شد: +<b>{deposit + interest}</b> سکه"
     save_all()
-    send_message(chat_id, msg, reply_markup=kb_bank())
+    send_message(TOKEN, chat_id, msg, chat_keypad=kb_bank())
 
-# ======================= منطق مبارزه =======================
-def handle_combat(user_id, chat_id, btn):
-    uid = str(user_id)
-    user = players.get(uid)
-    if not user:
-        return send_message(chat_id, "❗ خطا")
+def handle_combat(uid, chat_id, btn):
+    user = players.get(str(uid), {})
     msg = ""
     if btn == "⚔️ PvP":
         if user['coins'] >= PVP_STAKE:
             user['coins'] -= PVP_STAKE
             win = random.random() > 0.4
-            user['stats']['battles'] = user.get('stats', {}).get('battles', 0) + 1
-            if win:
-                user['coins'] += PVP_STAKE * 2
-                user['pvp_wins'] = user.get('pvp_wins', 0) + 1
-                user['stats']['wins'] = user.get('stats', {}).get('wins', 0) + 1
-                msg = "⚔️ PvP برنده شدید! +۲۰۰ سکه"
-            else:
-                user['stats']['losses'] = user.get('stats', {}).get('losses', 0) + 1
-                msg = "⚔️ PvP باختید!"
-        else:
-            msg = "❌ سکه کافی برای PvP ندارید."
+            user['stats']['battles'] = user.get('stats',{}).get('battles',0) + 1
+            if win: user['coins'] += PVP_STAKE*2; user['pvp_wins'] += 1; user['stats']['wins'] = user.get('stats',{}).get('wins',0)+1; msg = "⚔️ برنده! +۲۰۰ سکه"
+            else: user['stats']['losses'] = user.get('stats',{}).get('losses',0)+1; msg = "⚔️ باختید!"
+        else: msg = "❌ سکه کافی نیست"
     elif btn == "🐉 PvE":
         if user['coins'] >= PVE_STAKE:
             user['coins'] -= PVE_STAKE
             win = random.random() > 0.3
-            if win:
-                user['coins'] += PVE_STAKE * 1.5
-                user['pve_wins'] = user.get('pve_wins', 0) + 1
-                msg = "🐉 PvE برنده شدید!"
-            else:
-                msg = "🐉 PvE باختید."
-        else:
-            msg = "❌ سکه کافی ندارید."
-    elif btn == "👑 باس فایت":
-        msg = "👑 باس فایت در حال برگزاری است. برای ورود ۵۰۰ سکه نیاز است."
-    elif btn == "👥 جنگ گروهی":
-        msg = "👥 جنگ گروهی فعال است. به کلن خود بپیوندید."
-    elif btn == "⚡ دوئل":
-        msg = "⚡ دوئل با بازیکن تصادفی شروع شد! منتظر پاسخ حریف باشید."
-    elif btn == "🏅 لیگ":
-        msg = f"🏅 رتبه لیگ شما: <b>{user.get('league_points', 0)}</b> امتیاز"
-    elif btn == "🏆 تورنمنت":
-        msg = "🏆 تورنمنت هفتگی در حال برگزاری است."
-    elif btn == "🎲 نبرد تصادفی":
-        msg = "🎲 نبرد تصادفی با بازیکن تصادفی آغاز شد."
-    elif btn == "📊 نبرد رتبه‌ای":
-        msg = f"📊 رتبه نبرد شما: <b>{user.get('league_points', 0)}</b> امتیاز"
-    else:
-        msg = "⚔️ مبارزه خود را انتخاب کنید."
+            if win: user['coins'] += PVE_STAKE*1.5; user['pve_wins'] += 1; msg = "🐉 برنده!"
+            else: msg = "🐉 باختید"
+        else: msg = "❌ سکه کافی نیست"
+    elif btn == "👑 باس فایت": msg = "👑 باس فایت: ۵۰۰ سکه برای ورود"
+    elif btn == "👥 جنگ گروهی": msg = "👥 جنگ گروهی: به کلن بپیوندید"
+    elif btn == "⚡ دوئل": msg = "⚡ دوئل با بازیکن تصادفی آغاز شد"
+    elif btn == "🏅 لیگ": msg = f"🏅 امتیاز لیگ: <b>{user.get('league_points',0)}</b>"
+    elif btn == "🏆 تورنمنت": msg = "🏆 تورنمنت هفتگی فعال است"
+    elif btn == "🎲 نبرد تصادفی": msg = "🎲 نبرد تصادفی با بازیکن تصادفی"
+    elif btn == "📊 نبرد رتبه‌ای": msg = f"📊 رتبه نبرد: <b>{user.get('league_points',0)}</b>"
+    else: msg = "⚔️ مبارزه"
     save_all()
-    send_message(chat_id, msg, reply_markup=kb_combat())
+    send_message(TOKEN, chat_id, msg, chat_keypad=kb_combat())
 
-# ======================= منطق کلن =======================
-def handle_clan(user_id, chat_id, btn):
-    uid = str(user_id)
-    user = players.get(uid)
-    if not user:
-        return send_message(chat_id, "❗ خطا")
+def handle_clan(uid, chat_id, btn):
+    user = players.get(str(uid), {})
     msg = ""
     if btn == "🏗 ساخت کلن":
         if not user.get('clan'):
-            user['clan'] = f"کلن_{user['name'] or user_id[:4]}"
-            user['clan_role'] = "رهبر"
-            msg = f"🏰 کلن <b>{user['clan']}</b> ساخته شد!"
-        else:
-            msg = "❌ شما قبلاً در یک کلن هستید."
-    elif btn == "👥 عضوگیری":
-        msg = "👥 دعوت به کلن ارسال شد. منتظر پذیرش باشید."
-    elif btn == "💬 چت کلن":
-        msg = f"💬 چت کلن <b>{user.get('clan', 'ندارید')}</b> فعال است."
-    elif btn == "📈 ارتقا":
-        msg = "📈 کلن ارتقا یافت. سطح جدید: ۲"
-    elif btn == "💰 خزانه":
-        msg = f"💰 خزانه کلن: <b>۵۰۰۰</b> سکه"
-    elif btn == "⚔️ جنگ کلن":
-        msg = "⚔️ جنگ کلن با کلن رقیب آغاز شد!"
-    elif btn == "🎯 ماموریت کلن":
-        msg = "🎯 ماموریت کلن: جمع‌آوری ۱۰۰۰ سکه از ماینر."
-    elif btn == "📊 رتبه کلن":
-        msg = "📊 رتبه کلن شما: <b>۱۵</b>"
-    else:
-        msg = "🏰 کلن خود را مدیریت کنید."
+            user['clan'] = f"کلن_{str(uid)[:4]}"; user['clan_role'] = "رهبر"; msg = f"🏰 کلن <b>{user['clan']}</b> ساخته شد"
+        else: msg = "❌ در کلن هستید"
+    elif btn == "👥 عضوگیری": msg = "👥 دعوت ارسال شد"
+    elif btn == "💬 چت کلن": msg = f"💬 کلن: <b>{user.get('clan','ندارید')}</b>"
+    elif btn == "📈 ارتقا": msg = "📈 کلن ارتقا یافت (سطح ۲)"
+    elif btn == "💰 خزانه": msg = "💰 خزانه: <b>۵۰۰۰</b> سکه"
+    elif btn == "⚔️ جنگ کلن": msg = "⚔️ جنگ کلن با رقیب آغاز شد"
+    elif btn == "🎯 ماموریت کلن": msg = "🎯 ماموریت کلن: جمع‌آوری ۱۰۰۰ سکه"
+    elif btn == "📊 رتبه کلن": msg = "📊 رتبه کلن: <b>۱۵</b>"
+    else: msg = "🏰 کلن"
     save_all()
-    send_message(chat_id, msg, reply_markup=kb_clan())
+    send_message(TOKEN, chat_id, msg, chat_keypad=kb_clan())
 
-# ======================= منطق ماموریت =======================
-def handle_missions(user_id, chat_id, btn):
-    msg = ""
-    if btn == "📋 روزانه":
-        msg = "📋 ماموریت روزانه: جمع‌آوری ۵۰۰ سکه از ماینر. جایزه: ۲۰۰ سکه"
-    elif btn == "📅 هفتگی":
-        msg = "📅 ماموریت هفتگی: برنده شدن در ۳ مبارزه. جایزه: ۱۰۰۰ سکه"
-    elif btn == "📆 ماهانه":
-        msg = "📆 ماموریت ماهانه: ارتقا ماینر تا سطح ۱۰. جایزه: ۵۰۰۰ سکه"
-    elif btn == "🌸 فصلی":
-        msg = "🌸 ماموریت فصلی: رسیدن به سطح ۵۰. جایزه: ۱۰۰۰۰ سکه + اسکین"
-    elif btn == "🔍 مخفی":
-        msg = "🔍 ماموریت مخفی: پیدا کردن کلید طلایی در بازار."
-    elif btn == "⭐ ویژه":
-        msg = "⭐ ماموریت ویژه: دعوت ۱۰ دوست به ربات. جایزه: VIP یک ماهه"
-    else:
-        msg = "🎯 ماموریت‌ها را انتخاب کنید."
-    save_all()
-    send_message(chat_id, msg, reply_markup=kb_missions())
+def handle_missions(uid, chat_id, btn):
+    msg = {"📋 روزانه":"📋 روزانه: جمع ۵۰۰ سکه (+۲۰۰)","📅 هفتگی":"📅 هفتگی: ۳ برد (+۱۰۰۰)","📆 ماهانه":"📆 ماهانه: سطح ماینر ۱۰ (+۵۰۰۰)","🌸 فصلی":"🌸 فصلی: سطح ۵۰ (+۱۰۰۰۰ + اسکین)","🔍 مخفی":"🔍 مخفی: کلید طلایی در بازار","⭐ ویژه":"⭐ ویژه: دعوت ۱۰ دوست (+VIP)"}
+    send_message(TOKEN, chat_id, msg.get(btn,"🎯 ماموریت"), chat_keypad=kb_mission())
 
-# ======================= منطق لیدربرد =======================
-def handle_leaderboard(user_id, chat_id, btn):
-    msg = ""
-    if btn == "💰 ثروتمندترین":
-        msg = "💰 ثروتمندترین بازیکنان:<br>۱. کاربر A - ۹۹۹۹۹ سکه"
-    elif btn == "📊 بیشترین لول":
-        msg = "📊 بیشترین لول:<br>۱. کاربر B - سطح ۹۹"
-    elif btn == "⛏ بهترین ماینر":
-        msg = "⛏ بهترین ماینر:<br>۱. کاربر C - سطح ۹۵۰"
-    elif btn == "🏆 بیشترین برد":
-        msg = "🏆 بیشترین برد:<br>۱. کاربر D - ۵۰۰ برد"
-    elif btn == "🏰 بهترین کلن":
-        msg = "🏰 بهترین کلن:<br>۱. کلن شاهین"
-    elif btn == "📢 بیشترین دعوت":
-        msg = "📢 بیشترین دعوت:<br>۱. کاربر E - ۱۲۰ دعوت"
-    elif btn == "🔥 بیشترین فعالیت":
-        msg = "🔥 بیشترین فعالیت:<br>۱. کاربر F - ۹۹۹ امتیاز"
-    else:
-        msg = "🏆 لیدربرد را انتخاب کنید."
-    send_message(chat_id, msg, reply_markup=kb_leaderboard())
+def handle_leader(uid, chat_id, btn):
+    msg = {"💰 ثروتمندترین":"💰 ۱. کاربر A - ۹۹۹۹۹","📊 بیشترین لول":"📊 ۱. کاربر B - ۹۹","⛏ بهترین ماینر":"⛏ ۱. کاربر C - ۹۵۰","🏆 بیشترین برد":"🏆 ۱. کاربر D - ۵۰۰","🏰 بهترین کلن":"🏰 ۱. کلن شاهین","📢 بیشترین دعوت":"📢 ۱. کاربر E - ۱۲۰","🔥 بیشترین فعالیت":"🔥 ۱. کاربر F - ۹۹۹"}
+    send_message(TOKEN, chat_id, msg.get(btn,"🏆 لیدربرد"), chat_keypad=kb_leader())
 
-# ======================= منطق آیتم =======================
-def handle_items(user_id, chat_id, btn):
-    msg = ""
-    if btn == "⚡ بوستر":
-        msg = "⚡ بوستر سرعت ماینر به مدت ۱ ساعت فعال است."
-    elif btn == "🛡 سپر":
-        msg = "🛡 سپر محافظت در مبارزه فعال است."
-    elif btn == "💣 بمب":
-        msg = "💣 بمب برای آسیب به حریف در مبارزه آماده است."
-    elif btn == "🎁 جعبه شانس":
-        msg = "🎁 جعبه شانس باز شد. شما برنده یک آیتم تصادفی شدید."
-    elif btn == "🔑 کلید":
-        msg = "🔑 کلید برای باز کردن صندوق طلایی استفاده می‌شود."
-    elif btn == "📦 صندوق":
-        msg = "📦 صندوق باز شد. جایزه: ۳۰۰ سکه."
-    elif btn == "🐾 پت":
-        msg = "🐾 پت شما در حال پرورش است."
-    elif btn == "👕 لباس":
-        msg = "👕 لباس ورزشی به پروفایل شما اضافه شد."
-    elif btn == "🎨 اسکین":
-        msg = "🎨 اسکین طلایی فعال شد."
-    elif btn == "✨ افکت":
-        msg = "✨ افکت آتش به پیام‌های شما اضافه شد."
-    else:
-        msg = "🎁 آیتم‌ها را انتخاب کنید."
-    send_message(chat_id, msg, reply_markup=kb_items())
+def handle_items(uid, chat_id, btn):
+    msg = {"⚡ بوستر":"⚡ بوستر سرعت ماینر ۱ ساعت","🛡 سپر":"🛡 سپر محافظت مبارزه","💣 بمب":"💣 بمب برای مبارزه","🎁 جعبه شانس":"🎁 جعبه شانس: آیتم تصادفی","🔑 کلید":"🔑 کلید صندوق طلایی","📦 صندوق":"📦 صندوق: +۳۰۰ سکه","🐾 پت":"🐾 پت در حال پرورش","👕 لباس":"👕 لباس ورزشی","🎨 اسکین":"🎨 اسکین طلایی","✨ افکت":"✨ افکت آتش"}
+    send_message(TOKEN, chat_id, msg.get(btn,"🎁 آیتم"), chat_keypad=kb_items())
 
-# ======================= منطق پت =======================
-def handle_pets(user_id, chat_id, btn):
-    msg = ""
-    if btn == "🐕 خرید پت":
-        msg = "🐕 پت سگ عادی به قیمت ۲۰۰ سکه خریداری شد."
-    elif btn == "📈 ارتقا پت":
-        msg = "📈 پت شما ارتقا یافت. سطح جدید: ۵"
-    elif btn == "🍖 غذا":
-        msg = "🍖 پت شما تغذیه شد. سلامت ۱۰۰%"
-    elif btn == "⭐ تجربه":
-        msg = "⭐ پت شما تجربه کسب کرد. XP: ۵۰"
-    elif btn == "💪 مهارت":
-        msg = "💪 مهارت جدید: دفاع قوی"
-    elif btn == "🎲 کمیاب":
-        msg = "🎲 پت کمیاب: گربه کمیاب فعال است."
-    elif btn == "🐉 افسانه‌ای":
-        msg = "🐉 پت افسانه‌ای: اژدها فعال است."
-    else:
-        msg = "🐶 پت‌های خود را مدیریت کنید."
-    send_message(chat_id, msg, reply_markup=kb_pets())
+def handle_pets(uid, chat_id, btn):
+    msg = {"🐕 خرید پت":"🐕 پت سگ عادی (+۲۰۰ سکه)","📈 ارتقا پت":"📈 پت ارتقا یافت (سطح ۵)","🍖 غذا":"🍖 پت تغذیه شد (۱۰۰%)","⭐ تجربه":"⭐ پت XP: ۵۰","💪 مهارت":"💪 مهارت جدید: دفاع قوی","🎲 کمیاب":"🎲 پت کمیاب: گربه","🐉 افسانه‌ای":"🐉 پت افسانه‌ای: اژدها"}
+    send_message(TOKEN, chat_id, msg.get(btn,"🐶 پت"), chat_keypad=kb_pets())
 
-# ======================= منطق فروشگاه =======================
-def handle_shop(user_id, chat_id, btn):
-    msg = ""
-    if btn == "🎁 آیتم":
-        msg = "🎁 آیتم‌ها در فروشگاه: بوستر، سپر، بمب، جعبه شانس"
-    elif btn == "🎨 اسکین":
-        msg = "🎨 اسکین‌ها: طلایی، الماسی، افسانه‌ای"
-    elif btn == "💎 VIP":
-        msg = "💎 VIP یک ماهه: ۲۰۰ سکه"
-    elif btn == "⚡ بوستر":
-        msg = "⚡ بوستر: ۵۰ سکه"
-    elif btn == "📦 جعبه":
-        msg = "📦 جعبه شانس: ۱۰۰ سکه"
-    elif btn == "💰 بسته اقتصادی":
-        msg = "💰 بسته اقتصادی: ۳۰۰ سکه (۵۰۰۰ سکه + ۵۰ جم)"
-    else:
-        msg = "🛍 فروشگاه را انتخاب کنید."
-    send_message(chat_id, msg, reply_markup=kb_shop())
+def handle_shop(uid, chat_id, btn):
+    msg = {"🎁 آیتم":"🎁 بوستر، سپر، بمب، جعبه","🎨 اسکین":"🎨 طلایی، الماسی، افسانه‌ای","💎 VIP":"💎 VIP ماهانه: ۲۰۰ سکه","⚡ بوستر":"⚡ بوستر: ۵۰ سکه","📦 جعبه":"📦 جعبه شانس: ۱۰۰ سکه","💰 بسته اقتصادی":"💰 ۳۰۰ سکه (۵۰۰۰ + ۵۰ جم)"}
+    send_message(TOKEN, chat_id, msg.get(btn,"🛍 فروشگاه"), chat_keypad=kb_shop())
 
-# ======================= منطق رویداد =======================
-def handle_events(user_id, chat_id, btn):
-    msg = ""
-    events = {
-        "🎄 کریسمس": "🎄 رویداد کریسمس فعال است. جوایز دوبرابر!",
-        "🌸 نوروز": "🌸 نوروز مبارک! جوایز ویژه فصلی.",
-        "🍉 یلدا": "🍉 شب یلدا! جوایز شبانه.",
-        "🌙 رمضان": "🌙 رمضان مبارک! روزه‌داری مجازی فعال است.",
-        "🛒 جمعه سیاه": "🛒 جمعه سیاه! تخفیف ۵۰% در فروشگاه.",
-        "🎃 هالووین": "🎃 هالووین! جوایز ترسناک!",
-        "🎉 آخر هفته": "🎉 رویداد آخر هفته! امتیاز دوبرابر.",
-    }
-    msg = events.get(btn, "🎉 رویدادها را انتخاب کنید.")
-    send_message(chat_id, msg, reply_markup=kb_events())
+def handle_events(uid, chat_id, btn):
+    msg = {"🎄 کریسمس":"🎄 رویداد کریسمس (جوایز دوبرابر)","🌸 نوروز":"🌸 نوروز مبارک!","🍉 یلدا":"🍉 شب یلدا!","🌙 رمضان":"🌙 رمضان مبارک!","🛒 جمعه سیاه":"🛒 جمعه سیاه (۵۰% تخفیف)","🎃 هالووین":"🎃 هالووین!","🎉 آخر هفته":"🎉 آخر هفته (امتیاز دوبرابر)"}
+    send_message(TOKEN, chat_id, msg.get(btn,"🎉 رویداد"), chat_keypad=kb_events())
 
-# ======================= منطق اجتماعی =======================
-def handle_social(user_id, chat_id, btn):
-    msg = ""
-    if btn == "💬 چت خصوصی":
-        msg = "💬 چت خصوصی با دوستان فعال است."
-    elif btn == "👥 دوستان":
-        msg = "👥 لیست دوستان: کاربر A, کاربر B"
-    elif btn == "🚫 بلاک":
-        msg = "🚫 لیست بلاک شده‌ها خالی است."
-    elif btn == "📨 دعوت":
-        msg = "📨 دعوت دوستان ارسال شد. لینک ربات برای آنها فرستاده شد."
-    elif btn == "🎁 ارسال هدیه":
-        msg = "🎁 هدیه برای دوست ارسال شد. (+۱۰۰ سکه)"
-    elif btn == "📩 درخواست دوستی":
-        msg = "📩 درخواست دوستی جدید: کاربر X"
-    elif btn == "👀 مشاهده پروفایل":
-        msg = "👀 پروفایل کاربر A را مشاهده می‌کنید."
-    else:
-        msg = "👥 اجتماعی را انتخاب کنید."
-    send_message(chat_id, msg, reply_markup=kb_social())
+def handle_social(uid, chat_id, btn):
+    msg = {"💬 چت خصوصی":"💬 چت خصوصی فعال","👥 دوستان":"👥 دوستان: کاربر A, کاربر B","🚫 بلاک":"🚫 بلاک: خالی","📨 دعوت":"📨 دعوت ارسال شد","🎁 ارسال هدیه":"🎁 هدیه ارسال شد (+۱۰۰)","📩 درخواست دوستی":"📩 درخواست جدید","👀 مشاهده پروفایل":"👀 پروفایل کاربر A"}
+    send_message(TOKEN, chat_id, msg.get(btn,"👥 اجتماعی"), chat_keypad=kb_social())
 
-# ======================= منطق بازار =======================
-def handle_market(user_id, chat_id, btn):
-    msg = ""
-    if btn == "📈 خرید و فروش":
-        msg = "📈 بازار فعال است. آیتم‌های خود را بفروشید یا بخرید."
-    elif btn == "🏷 مزایده":
-        msg = "🏷 مزایده در حال برگزاری است. پیشنهاد خود را ثبت کنید."
-    elif btn == "💱 بازار آزاد":
-        msg = "💱 بازار آزاد: قیمت‌ها توسط کاربران تعیین می‌شود."
-    elif btn == "⏰ قیمت لحظه‌ای":
-        msg = "⏰ قیمت سکه: ۱ سکه = ۱ سکه | جم: ۱۰ سکه"
-    elif btn == "💸 مالیات معامله":
-        msg = "💸 مالیات معامله: ۵% از هر معامله"
-    else:
-        msg = "📈 بازار را انتخاب کنید."
-    send_message(chat_id, msg, reply_markup=kb_market())
+def handle_market(uid, chat_id, btn):
+    msg = {"📈 خرید و فروش":"📈 بازار فعال","🏷 مزایده":"🏷 مزایده در حال برگزاری","💱 بازار آزاد":"💱 بازار آزاد (قیمت توسط کاربران)","⏰ قیمت لحظه‌ای":"⏰ سکه: ۱ سکه | جم: ۱۰ سکه","💸 مالیات معامله":"💸 مالیات: ۵%"}
+    send_message(TOKEN, chat_id, msg.get(btn,"📈 بازار"), chat_keypad=kb_market())
 
-# ======================= منطق مینی‌گیم =======================
-def handle_minigames(user_id, chat_id, btn):
+def handle_minigames(uid, chat_id, btn):
     msg = ""
     if btn == "✊ سنگ کاغذ قیچی":
-        choices = ["✊", "✋", "✌️"]
-        user_c, bot_c = random.choice(choices), random.choice(choices)
-        if user_c == bot_c:
-            msg = f"✊ شما: {user_c} | ربات: {bot_c} | مساوی!"
-        elif (user_c == "✊" and bot_c == "✌️") or (user_c == "✋" and bot_c == "✊") or (user_c == "✌️" and bot_c == "✋"):
-            msg = f"✊ شما: {user_c} | ربات: {bot_c} | برنده!"
-        else:
-            msg = f"✊ شما: {user_c} | ربات: {bot_c} | باخت!"
-    elif btn == "🎲 حدس عدد":
-        num = random.randint(1, 10)
-        msg = f"🎲 عدد من بین ۱ تا ۱۰ است. حدس بزنید: {num}"
-    elif btn == "🎲 دوز":
-        msg = "🎲 بازی دوز شروع شد. تاس بیندازید!"
-    elif btn == "♟ شطرنج":
-        msg = "♟ شطرنج با ربات. حرکت خود را بگویید."
-    elif btn == "🎲 تاس":
-        msg = f"🎲 تاس: {random.randint(1, 6)}"
-    elif btn == "🎰 رولت":
-        msg = f"🎰 رولت: عدد {random.randint(0, 36)}"
-    elif btn == "♠ بلک جک":
-        msg = "♠ بلک جک: کارت شما ۱۸ است. بمانید یا بکشید؟"
-    elif btn == "🧠 حافظه":
-        msg = "🧠 حافظه: کارت‌های جفت را پیدا کنید!"
-    elif btn == "⚡ مسابقه سرعت":
-        msg = "⚡ مسابقه سرعت: سریع‌ترین کلیک برنده است."
-    else:
-        msg = "🎮 مینی‌گیم‌ها را انتخاب کنید."
-    send_message(chat_id, msg, reply_markup=kb_minigames())
+        c1, c2 = random.choice(["✊","✋","✌️"]), random.choice(["✊","✋","✌️"])
+        msg = f"✊ شما: {c1} | ربات: {c2} | {'مساوی' if c1==c2 else ('برنده' if (c1=='✊' and c2=='✌️') or (c1=='✋' and c2=='✊') or (c1=='✌️' and c2=='✋') else 'باخت')}"
+    elif btn == "🎲 حدس عدد": msg = f"🎲 عدد من: <b>{random.randint(1,10)}</b>"
+    elif btn == "🎲 دوز": msg = "🎲 دوز: تاس بیندازید!"
+    elif btn == "♟ شطرنج": msg = "♟ شطرنج با ربات"
+    elif btn == "🎲 تاس": msg = f"🎲 تاس: <b>{random.randint(1,6)}</b>"
+    elif btn == "🎰 رولت": msg = f"🎰 رولت: <b>{random.randint(0,36)}</b>"
+    elif btn == "♠ بلک جک": msg = "♠ بلک جک: کارت شما ۱۸ است"
+    elif btn == "🧠 حافظه": msg = "🧠 حافظه: کارت‌ها را جفت کنید"
+    elif btn == "⚡ مسابقه سرعت": msg = "⚡ مسابقه سرعت: سریع‌ترین کلیک برنده"
+    else: msg = "🎮 مینی‌گیم"
+    send_message(TOKEN, chat_id, msg, chat_keypad=kb_minigames())
 
-# ======================= منطق شغل =======================
-def handle_jobs(user_id, chat_id, btn):
-    msg = ""
-    jobs_text = {
-        "⛏ معدنچی": "⛏ معدنچی: استخراج سکه با سرعت بالا",
-        "🌾 کشاورز": "🌾 کشاورز: کشت محصولات و فروش",
-        "💼 تاجر": "💼 تاجر: خرید و فروش در بازار",
-        "💻 برنامه‌نویس": "💻 برنامه‌نویس: ساخت ربات و ابزار",
-        "👮 پلیس": "👮 پلیس: حفاظت از کلن و مبارزه",
-        "⚕ پزشک": "⚕ پزشک: درمان و بهبود سلامت",
-        "📈 سرمایه‌گذار": "📈 سرمایه‌گذار: سود از بانک و بازار",
-        "🚀 کارآفرین": "🚀 کارآفرین: راه‌اندازی کسب‌وکار جدید",
-    }
-    msg = jobs_text.get(btn, "💼 شغل خود را انتخاب کنید.")
-    send_message(chat_id, msg, reply_markup=kb_jobs())
+def handle_jobs(uid, chat_id, btn):
+    msg = {"⛏ معدنچی":"⛏ معدنچی: استخراج سریع","🌾 کشاورز":"🌾 کشاورز: کشت و فروش","💼 تاجر":"💼 تاجر: خرید/فروش","💻 برنامه‌نویس":"💻 برنامه‌نویس: ساخت ربات","👮 پلیس":"👮 پلیس: حفاظت","⚕ پزشک":"⚕ پزشک: درمان","📈 سرمایه‌گذار":"📈 سود بانکی","🚀 کارآفرین":"🚀 راه‌اندازی کسب‌وکار"}
+    send_message(TOKEN, chat_id, msg.get(btn,"💼 شغل"), chat_keypad=kb_jobs())
 
-# ======================= منطق نقشه =======================
-def handle_map(user_id, chat_id, btn):
-    msg = ""
-    if btn == "🏙 شهرها":
-        msg = "🏙 شهرها: تهران، اصفهان، شیراز، مشهد، تبریز"
-    elif btn == "✈ سفر":
-        msg = "✈ سفر به شهر جدید آغاز شد. هزینه: ۱۰۰ سکه"
-    elif btn == "🎯 مأموریت شهری":
-        msg = "🎯 مأموریت شهری: جمع‌آوری منابع در شهر جدید."
-    elif btn == "⛏ منابع":
-        msg = "⛏ منابع شهر: آهن، طلا، الماس"
-    elif btn == "🗺 سرزمین":
-        msg = "🗺 سرزمین شما: شهر اصلی + ۳ منطقه فتح شده"
-    elif btn == "🏁 فتح مناطق":
-        msg = "🏁 فتح مناطق جدید با مبارزه با دشمنان منطقه"
-    else:
-        msg = "🌍 نقشه را انتخاب کنید."
-    send_message(chat_id, msg, reply_markup=kb_map())
+def handle_map(uid, chat_id, btn):
+    msg = {"🏙 شهرها":"🏙 تهران، اصفهان، شیراز، مشهد، تبریز","✈ سفر":"✈ سفر به شهر جدید (۱۰۰ سکه)","🎯 مأموریت شهری":"🎯 جمع منابع در شهر","⛏ منابع":"⛏ آهن، طلا، الماس","🗺 سرزمین":"🗺 شهر اصلی + ۳ منطقه","🏁 فتح مناطق":"🏁 فتح با مبارزه"}
+    send_message(TOKEN, chat_id, msg.get(btn,"🌍 نقشه"), chat_keypad=kb_map())
 
-# ======================= منطق سیستم =======================
-def handle_systems(user_id, chat_id, btn):
-    msg = ""
-    if btn == "🔔 اعلان":
-        msg = "🔔 اعلان‌های جدید: جایزه روزانه آماده است!"
-    elif btn == "🛡 ضدتقلب":
-        msg = "🛡 سیستم ضدتقلب فعال است. رفتار مشکوک ثبت می‌شود."
-    elif btn == "📜 لاگ کامل":
-        msg = "📜 لاگ سیستم: آخرین ورود: ۱۴۰۳/۰۵/۰۱"
-    elif btn == "💾 بکاپ":
-        msg = "💾 بکاپ دستی انجام شد. داده‌ها ذخیره شدند."
-    elif btn == "📢 گزارش":
-        msg = "📢 گزارش مشکل: لطفاً متن گزارش را وارد کنید."
-    elif btn == "⚙ تنظیمات بازی":
-        msg = "⚙ تنظیمات بازی: زبان فارسی | صدا روشن | اعلان روشن"
-    elif btn == "📊 اقتصاد پویا":
-        msg = "📊 اقتصاد پویا فعال است. قیمت‌ها بر اساس عرضه و تقاضا تغییر می‌کنند."
-    elif btn == "🌐 API":
-        msg = "🌐 API ربات فعال است. مستندات در کانال موجود است."
-    else:
-        msg = "🤖 سیستم‌ها را انتخاب کنید."
-    send_message(chat_id, msg, reply_markup=kb_systems())
+def handle_systems(uid, chat_id, btn):
+    msg = {"🔔 اعلان":"🔔 اعلان: جایزه آماده!","🛡 ضدتقلب":"🛡 ضدتقلب فعال","📜 لاگ کامل":"📜 لاگ: آخرین فعالیت‌ها","💾 بکاپ":"💾 بکاپ دستی انجام شد","📢 گزارش":"📢 گزارش مشکل: متن وارد کنید","⚙ تنظیمات بازی":"⚙ زبان فارسی | صدا روشن","📊 اقتصاد پویا":"📊 اقتصاد پویا فعال","🌐 API":"🌐 API ربات فعال"}
+    send_message(TOKEN, chat_id, msg.get(btn,"🤖 سیستم"), chat_keypad=kb_systems())
 
-# ======================= منطق درآمدزایی =======================
-def handle_monetization(user_id, chat_id, btn):
-    msg = ""
-    if btn == "💎 خرید سکه":
-        msg = "💎 خرید سکه: ۱۰۰۰ سکه = ۱۰,۰۰۰ تومان"
-    elif btn == "💎 خرید جم":
-        msg = "💎 خرید جم: ۵۰ جم = ۵۰,۰۰۰ تومان"
-    elif btn == "🎖 اشتراک VIP":
-        msg = "🎖 اشتراک VIP ماهانه: ۵۰,۰۰۰ تومان"
-    elif btn == "📢 تبلیغات":
-        msg = "📢 تبلیغات در کانال ربات: ۱۰۰,۰۰۰ تومان در روز"
-    elif btn == "🤝 اسپانسر":
-        msg = "🤝 اسپانسر شدن: همکاری با برندها و دریافت سکه"
-    elif btn == "📢 مأموریت تبلیغاتی":
-        msg = "📢 مأموریت تبلیغاتی: دعوت ۵ نفر به کانال ربات = ۵۰۰ سکه"
-    elif btn == "📺 همکاری کانال":
-        msg = "📺 همکاری با کانال‌ها: تبلیغ متقابل"
-    elif btn == "💰 فروش آیتم":
-        msg = "💰 فروش آیتم در بازار آزاد. مالیات ۵%"
-    elif btn == "🎨 فروش اسکین":
-        msg = "🎨 فروش اسکین‌های کمیاب در مزایده"
-    elif btn == "🎟 Battle Pass":
-        msg = "🎟 Battle Pass فصلی: جوایز انحصاری"
-    elif btn == "🍀 Lucky Pass":
-        msg = "🍀 Lucky Pass: جوایز تصادفی روزانه"
-    elif btn == "🌸 Season Pass":
-        msg = "🌸 Season Pass: جوایز فصلی و اسکین انحصاری"
-    else:
-        msg = "💎 درآمدزایی را انتخاب کنید."
-    send_message(chat_id, msg, reply_markup=kb_monetization())
+def handle_mon(uid, chat_id, btn):
+    msg = {"💎 خرید سکه":"💎 ۱۰۰۰ سکه = ۱۰,۰۰۰ تومان","💎 خرید جم":"💎 ۵۰ جم = ۵۰,۰۰۰ تومان","🎖 اشتراک VIP":"🎖 VIP ماهانه: ۵۰,۰۰۰","📢 تبلیغات":"📢 تبلیغ در کانال: ۱۰۰,۰۰۰","🤝 اسپانسر":"🤝 اسپانسر: همکاری با برند","📢 مأموریت تبلیغاتی":"📢 دعوت ۵ نفر (+۵۰۰)","📺 همکاری کانال":"📺 تبلیغ متقابل","💰 فروش آیتم":"💰 فروش در بازار (+۵% مالیات)","🎨 فروش اسکین":"🎨 فروش در مزایده","🎟 Battle Pass":"🎟 Battle Pass فصلی","🍀 Lucky Pass":"🍀 Lucky Pass روزانه","🌸 Season Pass":"🌸 Season Pass فصلی"}
+    send_message(TOKEN, chat_id, msg.get(btn,"💎 درآمد"), chat_keypad=kb_mon())
 
-# ======================= منطق اعتیادآور =======================
-def handle_addictive(user_id, chat_id, btn):
-    uid = str(user_id)
-    user = players.get(uid)
-    if not user:
-        return send_message(chat_id, "❗ خطا")
+def handle_addictive(uid, chat_id, btn):
+    user = players.get(str(uid), {})
     msg = ""
-    if btn == "🔥 استریک ورود":
-        user['daily_streak'] = user.get('daily_streak', 0) + 1
-        msg = f"🔥 استریک ورود: <b>{user['daily_streak']}</b> روز پیاپی! (+۵۰ سکه)"
-    elif btn == "🎲 چرخ شانس":
-        r = random.randint(1, 100)
-        prize = 100 if r < 20 else (300 if r < 50 else 800)
-        user['coins'] += prize
-        msg = f"🎲 چرخ شانس! برنده <b>{prize}</b> سکه!"
-    elif btn == "📦 جعبه ۶ ساعت":
-        msg = "📦 جعبه رایگان هر ۶ ساعت آماده است! باز کنید."
-    elif btn == "🎲 مأموریت تصادفی":
-        msg = "🎲 مأموریت تصادفی جدید: برنده شدن در ۲ مبارزه (+۲۰۰ سکه)"
-    elif btn == "🎉 رویداد محدود":
-        msg = "🎉 رویداد محدود تا پایان هفته فعال است. شرکت کنید!"
-    elif btn == "🏅 دستاوردها":
-        msg = f"🏅 دستاوردها: سطح <b>{user.get('level', 1)}</b> | ماینر <b>{user.get('miner_level', 0)}</b>"
-    elif btn == "🧩 کلکسیون":
-        msg = f"🧩 کلکسیون آیتم شما: <b>{len(user.get('inventory', {}))}</b> آیتم"
-    elif btn == "💎 امتیاز وفاداری":
-        user['loyalty_points'] = user.get('loyalty_points', 0) + 10
-        msg = f"💎 امتیاز وفاداری: <b>{user['loyalty_points']}</b> امتیاز"
-    elif btn == "♾ لول بی‌نهایت":
-        msg = "♾ سیستم لول بی‌نهایت فعال است. هر لول جدید سخت‌تر می‌شود."
-    elif btn == "🔄 Prestige":
-        user['prestige'] = user.get('prestige', 0) + 1
-        user['coins'] += 5000
-        msg = f"🔄 Prestige شماره <b>{user['prestige']}</b>! پاداش: ۵۰۰۰ سکه"
-    else:
-        msg = "🌟 قابلیت‌های اعتیادآور را انتخاب کنید."
+    if btn == "🔥 استریک ورود": user['daily_streak'] += 1; msg = f"🔥 استریک: <b>{user['daily_streak']}</b> (+۵۰ سکه)"
+    elif btn == "🎲 چرخ شانس": r = random.randint(1,100); prize = 100 if r<20 else (300 if r<50 else 800); user['coins'] += prize; msg = f"🎲 برنده <b>{prize}</b> سکه!"
+    elif btn == "📦 جعبه ۶ ساعت": msg = "📦 جعبه رایگان آماده است!"
+    elif btn == "🎲 مأموریت تصادفی": msg = "🎲 ماموریت جدید: ۲ برد (+۲۰۰ سکه)"
+    elif btn == "🎉 رویداد محدود": msg = "🎉 رویداد محدود تا پایان هفته"
+    elif btn == "🏅 دستاوردها": msg = f"🏅 سطح <b>{user.get('level',1)}</b> | ماینر <b>{user.get('miner_level',0)}</b>"
+    elif btn == "🧩 کلکسیون": msg = f"🧩 آیتم‌ها: <b>{len(user.get('inventory',{}))}</b>"
+    elif btn == "💎 امتیاز وفاداری": user['loyalty_points'] += 10; msg = f"💎 وفاداری: <b>{user['loyalty_points']}</b>"
+    elif btn == "♾ لول بی‌نهایت": msg = "♾ لول بی‌نهایت فعال است"
+    elif btn == "🔄 Prestige": user['prestige'] += 1; user['coins'] += 5000; msg = f"🔄 Prestige <b>{user['prestige']}</b> (+۵۰۰۰)"
+    else: msg = "🌟 اعتیادآور"
     save_all()
-    send_message(chat_id, msg, reply_markup=kb_addictive())
+    send_message(TOKEN, chat_id, msg, chat_keypad=kb_add())
 
-# ======================= منطق ادمین حرفه‌ای =======================
-def handle_admin(user_id, chat_id, btn):
+def handle_admin(uid, chat_id, btn):
     msg = ""
-    if btn == "➕ دادن سکه":
-        msg = "➕ مقدار سکه و شناسه کاربر را وارد کنید.<br>مثال: 500 123456"
-    elif btn == "➖ گرفتن سکه":
-        msg = "➖ گرفتن سکه از کاربر: مقدار و شناسه را وارد کنید."
-    elif btn == "💎 دادن جم":
-        msg = "💎 دادن جم به کاربر: مقدار و شناسه را وارد کنید."
-    elif btn == "📣 پیام همگانی":
-        msg = "📣 متن پیام همگانی را وارد کنید."
-    elif btn == "🪙 سکه همگانی":
-        msg = "🪙 سکه همگانی برای همه کاربران ارسال شد: +۱۰۰ سکه"
-    elif btn == "📊 آمار کاربران":
-        msg = f"📊 تعداد کاربران: <b>{len(players)}</b>"
-    elif btn == "📁 لاگ سیستم":
-        msg = "📁 لاگ سیستم: آخرین خطاها و فعالیت‌ها موجود است."
-    elif btn == "⚙ تنظیمات بازی":
-        msg = "⚙ تنظیمات بازی در فایل تنظیمات قابل ویرایش است."
-    elif btn == "🛡 ضدتقلب":
-        msg = "🛡 ضدتقلب فعال است. کاربران مشکوک مسدود می‌شوند."
-    elif btn == "💾 بکاپ دستی":
-        msg = "💾 بکاپ دستی انجام شد."
+    if btn == "➕ دادن سکه": msg = "➕ مقدار و شناسه را وارد کنید. مثال: 500 123456"
+    elif btn == "➖ گرفتن سکه": msg = "➖ گرفتن سکه از کاربر"
+    elif btn == "💎 دادن جم": msg = "💎 دادن جم به کاربر"
+    elif btn == "📣 پیام همگانی": msg = "📣 متن پیام همگانی را وارد کنید"
+    elif btn == "🪙 سکه همگانی": msg = "🪙 +۱۰۰ سکه برای همه ارسال شد"
+    elif btn == "📊 آمار کاربران": msg = f"📊 کاربران: <b>{len(players)}</b>"
+    elif btn == "📁 لاگ سیستم": msg = "📁 لاگ سیستم موجود است"
+    elif btn == "⚙ تنظیمات بازی": msg = "⚙ تنظیمات در فایل قابل ویرایش است"
+    elif btn == "🛡 ضدتقلب": msg = "🛡 ضدتقلب فعال است"
+    elif btn == "💾 بکاپ دستی": msg = "💾 بکاپ دستی انجام شد"
     elif btn == "🔴 خروج از ادمین":
-        user_data = players.get(str(user_id), {})
-        user_data['admin_logged'] = False
+        players.get(str(uid),{})['admin_logged'] = False
         save_all()
-        msg = "🔴 از پنل ادمین حرفه‌ای خارج شدید."
-        send_message(chat_id, msg, reply_markup=kb_main(check_admin_access(user_id)))
+        send_message(TOKEN, chat_id, "🔴 خارج شدید", chat_keypad=kb_main(is_adm(str(uid) in [str(x) for x in ADMINS if isinstance(x,int)] or any(is_admin_by_name(str(uid))))))
         return
     elif btn == "🔙 بازگشت اصلی":
-        msg = "🔙 بازگشت به منوی اصلی"
-        send_message(chat_id, msg, reply_markup=kb_main(check_admin_access(user_id)))
+        is_adm = check_admin(str(uid), players.get(str(uid),{}).get('name',''))
+        send_message(TOKEN, chat_id, "🔙 منوی اصلی", chat_keypad=kb_main(is_adm))
         return
-    else:
-        msg = "🔧 پنل ادمین حرفه‌ای را انتخاب کنید."
-    send_message(chat_id, msg, reply_markup=kb_admin())
+    else: msg = "🔧 پنل ادمین حرفه‌ای"
+    send_message(TOKEN, chat_id, msg, chat_keypad=kb_admin_panel())
 
-# ======================= راهنما =======================
-def show_help(user_id, chat_id):
-    help_text = ("📚 راهنمای ربات روبیکا\n"
-                 "💰 اقتصاد بازی: فروشگاه، خرید، جوایز\n"
-                 "⛏ ماینر: جمع‌آوری و ارتقا تا سطح ۱۰۰۰\n"
-                 "🏦 بانک: سپرده، وام، سود متغیر\n"
-                 "⚔️ مبارزه: PvP، PvE، باس، جنگ گروهی\n"
-                 "🏰 کلن: ساخت، عضوگیری، جنگ، خزانه\n"
-                 "🎯 ماموریت: روزانه، هفتگی، ماهانه، فصلی\n"
-                 "🏆 لیدربرد: ثروت، لول، ماینر، برد\n"
-                 "🎁 آیتم: بوستر، سپر، بمب، جعبه، کلید، صندوق\n"
-                 "🐶 حیوانات: خرید، ارتقا، غذا، مهارت\n"
-                 "🛍 فروشگاه: آیتم، اسکین، VIP، بوستر، جعبه، بسته\n"
-                 "🎉 رویدادها: کریسمس، نوروز، یلدا، رمضان، جمعه سیاه، هالووین\n"
-                 "👥 اجتماعی: دوستان، دعوت، هدیه، پروفایل\n"
-                 "📈 بازار: خرید/فروش، مزایده، بازار آزاد، مالیات\n"
-                 "🎮 مینی‌گیم: سنگ کاغذ قیچی، حدس عدد، دوز، شطرنج، تاس، رولت، بلک جک، حافظه\n"
-                 "💼 شغل: معدنچی، کشاورز، تاجر، برنامه‌نویس، پلیس، پزشک، سرمایه‌گذار، کارآفرین\n"
-                 "🌍 نقشه: شهرها، سفر، مأموریت شهری، منابع، فتح مناطق\n"
-                 "🤖 سیستم‌ها: اعلان، ضدتقلب، لاگ، بکاپ، گزارش، تنظیمات، اقتصاد پویا، API\n"
-                 "💎 درآمدزایی: خرید سکه/جم، VIP، تبلیغات، اسپانسر، همکاری، فروش\n"
-                 "🌟 اعتیادآور: استریک، چرخ شانس، جعبه ۶ ساعت، دستاوردها، Prestige")
-    send_message(chat_id, help_text, reply_markup=kb_main(is_admin(user_id)))
-
-# ======================= حلقه اصلی (پولینگ با کتابخانه روبیکا) =======================
+# ======================= حلقه اصلی =======================
 def main():
     print("ربات روبیکا راه‌اندازی شد. در حال پولینگ با کتابخانه rubika-bot...")
     offset = None
     while True:
         try:
-            try:
-                # استفاده از کتابخانه rubika-bot
-                updates_result = get_updates(
-                    token=TOKEN,
-                    limit=10,
-                    timeout=20
-                )
-                # کتابخانه rubika-bot ممکن است پاسخ را به شکل خاص برگرداند
-                if isinstance(updates_result, tuple) and len(updates_result) > 0:
-                    updates_list = updates_result[0]
-                elif isinstance(updates_result, dict):
-                    updates_list = updates_result.get("result", [])
+            updates_result = get_updates(token=TOKEN, limit=10, timeout=20)
+            # کتابخانه rubika-bot پاسخ را به شکل (List[Update], str) برمی‌گرداند
+            if isinstance(updates_result, tuple) and len(updates_result) == 2:
+                updates, offset = updates_result
+            elif isinstance(updates_result, list):
+                updates = updates_result
+            else:
+                updates = []
+            for update in updates:
+                # از مدل Update کتابخانه استفاده می‌کنیم
+                if hasattr(update, 'new_message'):
+                    msg = update.new_message
+                    chat_id = msg.chat_id if hasattr(msg, 'chat_id') else getattr(getattr(msg, 'chat', None), 'id', None)
+                    text = msg.text if msg.text else ""
+                    user_id = msg.sender_id if msg.sender_id else getattr(getattr(msg, 'from_chat', None), 'id', None)
+                    user_name = getattr(getattr(msg, 'from_chat', None), 'first_name', '') if hasattr(msg, 'from_chat') else ''
                 else:
-                    updates_list = updates_result if isinstance(updates_result, list) else []
-            except Exception as e_lib:
-                print("Library error, falling back to direct POST:", e_lib)
-                # جایگزین با درخواست مستقیم POST
-                url = f"https://botapi.rubika.ir/v3/{TOKEN}/getUpdates"
-                payload = {"timeout": 20, "limit": 10}
-                if offset is not None:
-                    payload["offset"] = offset
-                try:
-                    data = json.dumps(payload, ensure_ascii=False).encode('utf-8')
-                    req = urllib.request.Request(
-                        url,
-                        data=data,
-                        headers={"Content-Type": "application/json"},
-                        method="POST"
-                    )
-                    with urllib.request.urlopen(req, timeout=30) as r:
-                        updates_result = json.loads(r.read())
-                    updates_list = updates_result.get("result", [])
-                except Exception as e_post:
-                    print("Direct POST error:", e_post)
-                    updates_list = []
-
-            if isinstance(updates_list, list) and updates_list:
-                for update in updates_list:
-                    update_id = update.get("update_id", 0)
-                    offset = update_id + 1
-                    message = update.get("message", {})
-                    if not message:
+                    # اگر به هر دلیلی مدل نبود، از دیکشنری استفاده می‌کنیم
+                    msg = update.get('message', update.get('new_message', {})) if isinstance(update, dict) else {}
+                    chat_id = msg.get('chat', {}).get('id') if isinstance(msg.get('chat'), dict) else msg.get('chat_id')
+                    text = msg.get('text', '')
+                    user_obj = msg.get('from', {}) if isinstance(msg.get('from'), dict) else msg.get('sender', {})
+                    user_id = user_obj.get('id', msg.get('sender_id'))
+                    user_name = user_obj.get('first_name', user_obj.get('username', msg.get('sender_name', '')))
+                    if not chat_id or not user_id:
                         continue
-                    chat_id = message.get("chat", {}).get("id") if isinstance(message.get("chat"), dict) else message.get("chat_id")
-                    text = message.get("text", "")
-                    user_obj = message.get("from", {}) if isinstance(message.get("from"), dict) else {}
-                    user_id = user_obj.get("id", message.get("sender_id", message.get("author_object_guid", "unknown")))
-                    user_name = user_obj.get("first_name", user_obj.get("username", message.get("sender_name", message.get("author_object_name", ""))))
-                    username = user_obj.get("username", "")
-
-                    if not user_id or not chat_id:
-                        continue
-
-                    ensure_user_struct(user_id)
-                    user_data = players.get(str(user_id), {})
-                    user_data['name'] = user_name or user_data.get('name', 'کاربر')
-                    user_data['username'] = username or user_data.get('username', '')
-                    is_adm = check_admin_access(user_id, user_name) or check_admin_access(user_id, username)
-
-                    if text.startswith("/") or text.startswith("!"):
-                        cmd = text.lower()
-                        if cmd in ("/start", "شروع", "/start", "استارت"):
-                            user_data['started'] = True
-                            send_message(TOKEN, chat_id, f"🎮 خوش آمدید {user_name or 'دوست عزیز'}! ربات بازی و اقتصاد فعال است.", reply_markup=kb_main(is_adm))
-                        elif cmd in ("/admin", "ادمین", "/panel"):
-                            if is_adm:
-                                user_data['admin_logged'] = True
-                                send_message(TOKEN, chat_id, "🔐 رمز پنل ادمین حرفه‌ای را وارد کنید (رمز: <b>ali</b>)", reply_markup={"keyboard": [["🔑 ورود با رمز"], ["🔙 بازگشت"]], "resize_keyboard": True})
-                            else:
-                                send_message(TOKEN, chat_id, "❌ شما ادمین نیستید.", reply_markup=kb_main(is_adm))
-                        elif cmd in ("/help", "راهنما", "/راهنما"):
-                            show_help(user_id, chat_id)
-                        else:
-                            send_message(TOKEN, chat_id, "❓ دستور ناشناخته. از منو استفاده کنید.", reply_markup=kb_main(is_adm))
-                    else:
-                        # بررسی رمز ادمین
-                        if text.lower().strip() == "ali" or (user_data.get('step') == "admin_login" and text.lower().strip() == "ali"):
+                ensure_user_struct(user_id)
+                user_data = players.get(str(user_id), {})
+                user_data['name'] = user_name or user_data.get('name', 'کاربر')
+                is_adm = check_admin(user_id, user_name)
+                # پردازش دستورات
+                if text.startswith("/") or text in ["شروع","استارت","/start","/admin","ادمین","/panel","راهنما","/help","/راهنما"]:
+                    cmd = text.lower().strip()
+                    if cmd in ["/start","شروع","استارت","/start"]:
+                        user_data['started'] = True
+                        send_message(TOKEN, chat_id, f"🎮 خوش آمدید {user_name or 'دوست عزیز'}! ربات بازی و اقتصاد فعال است.", chat_keypad=kb_main(is_adm))
+                    elif cmd in ["/admin","ادمین","/panel"]:
+                        if is_adm:
                             user_data['admin_logged'] = True
-                            user_data['step'] = None
-                            send_message(TOKEN, chat_id, "✅ رمز صحیح است. به پنل ادمین حرفه‌ای خوش آمدید.", reply_markup=kb_admin())
-                            save_all()
-                            continue
-
-                        # منطق دکمه‌ها مشابه نسخه قبل
-                        btn_map = {
-                            "💰 اقتصاد بازی": ("economy", lambda: handle_economy(user_id, chat_id, text)),
-                            "👤 پروفایل": ("profile", lambda: handle_profile(user_id, chat_id, text)),
-                            "⛏️ ماینر": ("miner", lambda: handle_miner(user_id, chat_id, text)),
-                            "🏦 بانک": ("bank", lambda: handle_bank(user_id, chat_id, text)),
-                            "⚔️ مبارزه": ("combat", lambda: handle_combat(user_id, chat_id, text)),
-                            "🏰 کلن": ("clan", lambda: handle_clan(user_id, chat_id, text)),
-                            "🎯 ماموریت": ("mission", lambda: handle_missions(user_id, chat_id, text)),
-                            "🏆 لیدربرد": ("leaderboard", lambda: handle_leaderboard(user_id, chat_id, text)),
-                            "🎁 آیتم": ("items", lambda: handle_items(user_id, chat_id, text)),
-                            "🐶 حیوانات": ("pets", lambda: handle_pets(user_id, chat_id, text)),
-                            "🛍 فروشگاه": ("shop", lambda: handle_shop(user_id, chat_id, text)),
-                            "🎉 رویدادها": ("events", lambda: handle_events(user_id, chat_id, text)),
-                            "👥 اجتماعی": ("social", lambda: handle_social(user_id, chat_id, text)),
-                            "📈 بازار": ("market", lambda: handle_market(user_id, chat_id, text)),
-                            "🎮 مینی‌گیم": ("minigame", lambda: handle_minigames(user_id, chat_id, text)),
-                            "💼 شغل": ("jobs", lambda: handle_jobs(user_id, chat_id, text)),
-                            "🌍 نقشه": ("map", lambda: handle_map(user_id, chat_id, text)),
-                            "🤖 سیستم‌ها": ("systems", lambda: handle_systems(user_id, chat_id, text)),
-                            "💎 درآمدزایی": ("monetization", lambda: handle_monetization(user_id, chat_id, text)),
-                            "🌟 اعتیادآور": ("addictive", lambda: handle_addictive(user_id, chat_id, text)),
-                            "🔧 پنل ادمین حرفه‌ای": ("admin", lambda: handle_admin(user_id, chat_id, text)),
-                        }
-                        matched = False
-                        for k, v in btn_map.items():
-                            if text == k:
-                                user_data['prev'] = v[0]
-                                user_data['step'] = v[0]
-                                v[1]()
-                                matched = True
-                                break
-                        if not matched:
-                            prev = user_data.get('prev') or user_data.get('step')
-                            if prev == "economy":
-                                handle_economy(user_id, chat_id, text)
-                            elif prev == "profile":
-                                handle_profile(user_id, chat_id, text)
-                            elif prev == "miner":
-                                handle_miner(user_id, chat_id, text)
-                            elif prev == "bank":
-                                handle_bank(user_id, chat_id, text)
-                            elif prev == "combat":
-                                handle_combat(user_id, chat_id, text)
-                            elif prev == "clan":
-                                handle_clan(user_id, chat_id, text)
-                            elif prev == "mission":
-                                handle_missions(user_id, chat_id, text)
-                            elif prev == "leaderboard":
-                                handle_leaderboard(user_id, chat_id, text)
-                            elif prev == "items":
-                                handle_items(user_id, chat_id, text)
-                            elif prev == "pets":
-                                handle_pets(user_id, chat_id, text)
-                            elif prev == "shop":
-                                handle_shop(user_id, chat_id, text)
-                            elif prev == "events":
-                                handle_events(user_id, chat_id, text)
-                            elif prev == "social":
-                                handle_social(user_id, chat_id, text)
-                            elif prev == "market":
-                                handle_market(user_id, chat_id, text)
-                            elif prev == "minigame":
-                                handle_minigames(user_id, chat_id, text)
-                            elif prev == "jobs":
-                                handle_jobs(user_id, chat_id, text)
-                            elif prev == "map":
-                                handle_map(user_id, chat_id, text)
-                            elif prev == "systems":
-                                handle_systems(user_id, chat_id, text)
-                            elif prev == "monetization":
-                                handle_monetization(user_id, chat_id, text)
-                            elif prev == "addictive":
-                                handle_addictive(user_id, chat_id, text)
-                            elif prev == "admin":
+                            send_message(TOKEN, chat_id, "🔐 رمز پنل ادمین حرفه‌ای را وارد کنید (رمز: <b>ali</b>)", chat_keypad=kb([["🔑 ورود با رمز"],["🔙 بازگشت"]]))
+                        else:
+                            send_message(TOKEN, chat_id, "❌ شما ادمین نیستید.", chat_keypad=kb_main(is_adm))
+                    elif cmd in ["/help","راهنما","/راهنما"]:
+                        send_message(TOKEN, chat_id, ("📚 راهنما: 💰 اقتصاد | 👤 پروفایل | ⛏ ماینر | 🏦 بانک | ⚔️ مبارزه | 🏰 کلن | 🎯 ماموریت | 🏆 لیدربرد | 🎁 آیتم | 🐶 پت | 🛍 فروشگاه | 🎉 رویداد | 👥 اجتماعی | 📈 بازار | 🎮 مینی‌گیم | 💼 شغل | 🌍 نقشه | 🤖 سیستم | 💎 درآمد | 🌟 اعتیادآور | 🔧 ادمین (رمز: ali)"), chat_keypad=kb_main(is_adm))
+                    else:
+                        send_message(TOKEN, chat_id, "❓ دستور ناشناخته. از منو استفاده کنید.", chat_keypad=kb_main(is_adm))
+                else:
+                    # بررسی رمز ادمین
+                    if text.lower().strip() == ADMIN_PASSWORD or (user_data.get('step') == 'admin_login' and text.lower().strip() == ADMIN_PASSWORD):
+                        user_data['admin_logged'] = True; user_data['step'] = None
+                        send_message(TOKEN, chat_id, "✅ رمز صحیح! به پنل ادمین حرفه‌ای خوش آمدید.", chat_keypad=kb_admin_panel())
+                        save_all()
+                        continue
+                    # منطق دکمه‌ها
+                    btn_map = {
+                        "💰 اقتصاد بازی":"economy","👤 پروفایل":"profile","⛏️ ماینر":"miner","🏦 بانک":"bank",
+                        "⚔️ مبارزه":"combat","🏰 کلن":"clan","🎯 ماموریت":"mission","🏆 لیدربرد":"leaderboard",
+                        "🎁 آیتم":"items","🐶 حیوانات":"pets","🛍 فروشگاه":"shop","🎉 رویدادها":"events",
+                        "👥 اجتماعی":"social","📈 بازار":"market","🎮 مینی‌گیم":"minigame","💼 شغل":"jobs",
+                        "🌍 نقشه":"map","🤖 سیستم‌ها":"systems","💎 درآمدزایی":"monetization","🌟 اعتیادآور":"addictive",
+                        "🔧 پنل ادمین حرفه‌ای":"admin"
+                    }
+                    matched = False
+                    for k, v in btn_map.items():
+                        if text == k:
+                            user_data['prev'] = v; user_data['step'] = v
+                            if v == "economy": handle_economy(user_id, chat_id, text)
+                            elif v == "profile": handle_profile(user_id, chat_id, text)
+                            elif v == "miner": handle_miner(user_id, chat_id, text)
+                            elif v == "bank": handle_bank(user_id, chat_id, text)
+                            elif v == "combat": handle_combat(user_id, chat_id, text)
+                            elif v == "clan": handle_clan(user_id, chat_id, text)
+                            elif v == "mission": handle_missions(user_id, chat_id, text)
+                            elif v == "leaderboard": handle_leader(user_id, chat_id, text)
+                            elif v == "items": handle_items(user_id, chat_id, text)
+                            elif v == "pets": handle_pets(user_id, chat_id, text)
+                            elif v == "shop": handle_shop(user_id, chat_id, text)
+                            elif v == "events": handle_events(user_id, chat_id, text)
+                            elif v == "social": handle_social(user_id, chat_id, text)
+                            elif v == "market": handle_market(user_id, chat_id, text)
+                            elif v == "minigame": handle_minigames(user_id, chat_id, text)
+                            elif v == "jobs": handle_jobs(user_id, chat_id, text)
+                            elif v == "map": handle_map(user_id, chat_id, text)
+                            elif v == "systems": handle_systems(user_id, chat_id, text)
+                            elif v == "monetization": handle_mon(user_id, chat_id, text)
+                            elif v == "addictive": handle_addictive(user_id, chat_id, text)
+                            elif v == "admin":
                                 if user_data.get('admin_logged'):
                                     handle_admin(user_id, chat_id, text)
                                 else:
-                                    user_data['step'] = "admin_login"
-                                    send_message(TOKEN, chat_id, "🔑 برای ورود به پنل ادمین حرفه‌ای، رمز را وارد کنید (رمز: <b>ali</b>)", reply_markup={"keyboard": [["ali"], ["🔙 بازگشت"]], "resize_keyboard": True})
+                                    user_data['step'] = 'admin_login'
+                                    send_message(TOKEN, chat_id, "🔑 رمز ادمین حرفه‌ای را وارد کنید (رمز: <b>ali</b>)", chat_keypad=kb([["ali"],["🔙 بازگشت"]]))
+                            matched = True
+                            break
+                    if not matched:
+                        prev = user_data.get('prev') or user_data.get('step')
+                        if prev == "economy": handle_economy(user_id, chat_id, text)
+                        elif prev == "profile": handle_profile(user_id, chat_id, text)
+                        elif prev == "miner": handle_miner(user_id, chat_id, text)
+                        elif prev == "bank": handle_bank(user_id, chat_id, text)
+                        elif prev == "combat": handle_combat(user_id, chat_id, text)
+                        elif prev == "clan": handle_clan(user_id, chat_id, text)
+                        elif prev == "mission": handle_missions(user_id, chat_id, text)
+                        elif prev == "leaderboard": handle_leader(user_id, chat_id, text)
+                        elif prev == "items": handle_items(user_id, chat_id, text)
+                        elif prev == "pets": handle_pets(user_id, chat_id, text)
+                        elif prev == "shop": handle_shop(user_id, chat_id, text)
+                        elif prev == "events": handle_events(user_id, chat_id, text)
+                        elif prev == "social": handle_social(user_id, chat_id, text)
+                        elif prev == "market": handle_market(user_id, chat_id, text)
+                        elif prev == "minigame": handle_minigames(user_id, chat_id, text)
+                        elif prev == "jobs": handle_jobs(user_id, chat_id, text)
+                        elif prev == "map": handle_map(user_id, chat_id, text)
+                        elif prev == "systems": handle_systems(user_id, chat_id, text)
+                        elif prev == "monetization": handle_mon(user_id, chat_id, text)
+                        elif prev == "addictive": handle_addictive(user_id, chat_id, text)
+                        elif prev == "admin":
+                            if user_data.get('admin_logged'):
+                                handle_admin(user_id, chat_id, text)
                             else:
-                                for k in btn_map:
-                                    if text == k:
-                                        user_data['prev'] = btn_map[k][0]
-                                        user_data['step'] = btn_map[k][0]
-                                        btn_map[k][1]()
-                                        matched = True
-                                        break
-                                if not matched:
-                                    send_message(TOKEN, chat_id, "❓ لطفاً از منو انتخاب کنید.", reply_markup=kb_main(is_adm))
+                                user_data['step'] = 'admin_login'
+                                send_message(TOKEN, chat_id, "🔐 رمز ادمین حرفه‌ای (ali) را وارد کنید.", chat_keypad=kb([["ali"],["🔙 بازگشت"]]))
+                        else:
+                            is_adm = check_admin(user_id, user_name)
+                            send_message(TOKEN, chat_id, "❓ لطفاً از منو انتخاب کنید.", chat_keypad=kb_main(is_adm))
+                save_all()
         except Exception as e:
             print("Loop error:", e)
             time.sleep(2)
-
-# توابع کمک‌کننده برای ارسال پیام با کتابخانه
-# در صورت نیاز به ارسال با توکن جایگزین، از send_message استفاده می‌شود
 
 if __name__ == "__main__":
     main()
